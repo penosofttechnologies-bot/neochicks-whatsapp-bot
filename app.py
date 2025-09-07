@@ -74,9 +74,9 @@ def webhook():
             reply = "We have different Capacities of Eggs Incubators Between 64 Eggs up t0 5280 Eggs. Tell me your target capacity & county for a quote."
         elif "delivery terms" in t:
             reply = "We offer free deliver nationwide. You Pay on delivery. Delivery done within 24 Hours."
-            elif "incubator repair" in t:
-            reply = "Kindly click on this page and see if it helps in your issue: http://neochickspoultry.com/troubleshoot \n"
-                  "if you do not get help from there, call our technician on: 0793585968"
+        elif "incubator repair" in t:
+            reply = ("Kindly click on this page and see if it helps in your issue: http://neochickspoultry.com/troubleshoot \n"
+                  "if you do not get help from there, call our technician on: 0793585968")
         elif "agent" in t:
             reply = "Connecting you to a human agent… You can also call or whatsapp 0707 787884."
 
