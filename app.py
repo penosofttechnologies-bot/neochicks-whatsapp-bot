@@ -65,7 +65,7 @@ def webhook():
         "Type *menu*, *prices*, *delivery*, or *agent*."
         t = (text or "").strip().lower()
         if t in {"hi", "hello", "menu", ""}:
-            reply = ("Karibu Neochicks Poultry Ltd! \n"
+            reply = ("*Karibu Neochicks Poultry Ltd!* \n \n"
                      "I am your 24Hours assistant \n"
                      "Please reply by typing one of the following: \n"
                      "• Incubator Prices\n• Incubator Capacities\n• Delivery Terms\n• Incubator Repair\n• Agent\n\n"
