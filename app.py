@@ -61,18 +61,24 @@ def webhook():
                 text = inter.get("list_reply", {}).get("title", "")
 
         # Simple auto-reply
-        reply = "Karibu! Type *menu*, *prices*, *delivery*, or *agent*."
+        reply = "Karibu Neochicks! \n"
+        "Type *menu*, *prices*, *delivery*, or *agent*."
         t = (text or "").strip().lower()
         if t in {"hi", "hello", "menu", ""}:
-            reply = ("Karibu Neochicks! \n"
-                     "• Prices\n• Capacities\n• Delivery\n• Troubleshoot\n• Agent\n\n"
-                     "This line is chat-only. For calls: 0707 787884")
-        elif "prices" in t:
-            reply = "Promo: 64→5280-egg models. Tell me your target capacity & county for a quote."
-        elif "delivery" in t:
-            reply = "We deliver nationwide. Pay on delivery. Typical ETA 24–72h by county."
+            reply = ("Karibu Neochicks Poultry Ltd! \n"
+                     "I am your 24Hours assistant \n"
+                     "Please reply by typing one of the following: \n"
+                     "• Incubator Prices\n• Incubator Capacities\n• Delivery Terms\n• Incubator Repair\n• Agent\n\n"
+                     "This line is chat-only. For calls, use: 0707 787884")
+        elif "incubator prices" in t:
+            reply = "We have different Capacities of Eggs Incubators Between 64 Eggs up t0 5280 Eggs. Tell me your target capacity & county for a quote."
+        elif "delivery terms" in t:
+            reply = "We offer free deliver nationwide. You Pay on delivery. Delivery done within 24 Hours."
+            elif "incubator repair" in t:
+            reply = "Kindly click on this page and see if it helps in your issue: http://neochickspoultry.com/troubleshoot \n"
+                  "if you do not get help from there, call our technician on: 0793585968"
         elif "agent" in t:
-            reply = "Connecting you to a human agent… You can also call 0707 787884."
+            reply = "Connecting you to a human agent… You can also call or whatsapp 0707 787884."
 
         send_text(from_wa, reply)
         return "ok", 200
