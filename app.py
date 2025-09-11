@@ -53,9 +53,20 @@ CATALOG = [
 ]
 
 DELIVERY_ETA = {
-    "nairobi": "24–36h", "kiambu": "24–36h", "nakuru": "24–48h",
-    "eldoret": "36–60h", "mombasa": "36–72h", "kisumu": "36–60h",
+    "nairobi": "same day"
 }
+
+if sess.get("state") == "await_county":
+    county = re.sub(r"[^a-z ]", "", low).strip()
+    if not county:
+        return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
+    sess["state"] = None
+    key = county.split()[0].lower()
+    if key == "nairobi":
+        eta = DELIVERY_ETA["nairobi"]
+    else:
+        eta = "24 hours"
+    return {"text": f"📍 {county.title()} → Typical delivery {eta}. *Pay on delivery.*"}
 
 WELCOME_TEXT = (
     "🐣 Karibu *Neochicks Poultry Ltd*! 🚛\n\n"
@@ -186,8 +197,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["state"] = None
         return {"text": (
             "🛠️ Quick checks:\n"
-            "1) Temp 37.5°C (±0.2)\n"
-            "2) Humidity 45–55% set / 65% hatch\n"
+            "1) Temp 37.8°C (±0.2)\n"
+            "2) Humidity 55–65% set / 70% hatch\n"
             "3) Turning 3–5×/day (auto OK)\n"
             "4) Candle day 7 & 14; remove clears\n"
             "5) Ventilation okay (no drafts)\n\n"
