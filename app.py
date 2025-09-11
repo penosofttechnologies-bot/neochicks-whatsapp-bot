@@ -79,7 +79,7 @@ def price_page_text(page:int=1, per_page:int=6) -> str:
     start = (page-1)*per_page
     chunk = items[start:start+per_page]
     lines = [product_line(p) for p in chunk]
-    footer = f"\nPage {page}/{pages}. Type *next*/*back* to browse, or type a *capacity number* (e.g., 204 or 528)."
+    footer = f"\n\nPage {page}/{pages}. Type *next* or *back* to see more capacities, or type a *number of eggs that you have in mind* (e.g. 64, 100, 204, 528, 1000 etc)."
     return "🐣 *Neochicks Price List*\n" + "\n".join(lines) + footer
 
 def find_by_capacity(cap:int):
