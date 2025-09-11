@@ -132,7 +132,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 out = {"text": f"📦 *{p['name']}*{extra}\n"
                                f"Capacity: {p['capacity']} eggs\n"
                                f"Price: {ksh(p['price'])}{gen}\n\n"
-                               f"Reply with your *county* for delivery ETA and quote."}
+                               f"We offer Free Delivery and Training."}
                 if p.get("image"):
                     out.update({"mediaUrl": p["image"], "caption": f"{p['name']} — {ksh(p['price'])}"})
                 return out
