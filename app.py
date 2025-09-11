@@ -30,16 +30,16 @@ def send_image(to: str, link: str, caption: str = ""):
     r = requests.post(url, headers=_headers(), json=payload, timeout=30); r.raise_for_status(); return r.json()
 
 CATALOG = [
-    {"name":"Neo-56 Solar",  "capacity":56,   "price":13000,  "solar":True,  "free_gen":False, "image": ""},
-    {"name":"Neo-64 Solar",  "capacity":64,   "price":14000,  "solar":True,  "free_gen":False, "image": ""},
-    {"name":"Neo-104 Solar", "capacity":104,  "price":19000,  "solar":True,  "free_gen":False, "image": ""},
-    {"name":"Neo-128 Solar", "capacity":128,  "price":20000,  "solar":True,  "free_gen":False, "image": ""},
-    {"name":"Neo-192 Solar", "capacity":192,  "price":28000,  "solar":True,  "free_gen":False, "image": ""},
-    {"name":"Neo-204 Solar", "capacity":204,  "price":30000,  "solar":True,  "free_gen":False,
+    {"name":"56 Eggs Solar Incubator",  "capacity":56,   "price":13000,  "solar":True,  "free_gen":False, "image": ""},
+    {"name":"64 Eggs Solar Incubator",  "capacity":64,   "price":14000,  "solar":True,  "free_gen":False, "image": ""},
+    {"name":"112 Eggs Solar Incubator", "capacity":104,  "price":19000,  "solar":True,  "free_gen":False, "image": ""},
+    {"name":"128 Eggs Solar Incubator", "capacity":128,  "price":20000,  "solar":True,  "free_gen":False, "image": ""},
+    {"name":"192 Eggs Solar Incubator", "capacity":192,  "price":28000,  "solar":True,  "free_gen":False, "image": ""},
+    {"name":"204 Eggs Solar Incubator", "capacity":204,  "price":30000,  "solar":True,  "free_gen":False,
      "image":"https://neochickspoultry.com/wp-content/uploads/2025/07/204-eggs-incubator-600x650.jpg"},
-    {"name":"Neo-256 Solar", "capacity":256,  "price":33000,  "solar":True,  "free_gen":False, "image": ""},
+    {"name":"256 Eggs Solar Incubator", "capacity":256,  "price":33000,  "solar":True,  "free_gen":False, "image": ""},
     {"name":"Neo-264",       "capacity":264,  "price":45000,  "solar":False, "free_gen":False, "image": ""},
-    {"name":"Neo-300 Solar", "capacity":300,  "price":52000,  "solar":True,  "free_gen":False, "image": ""},
+    {"name":"350 Eggs Solar Incubator", "capacity":350,  "price":54000,  "solar":True,  "free_gen":False, "image": ""},
     {"name":"Neo-352",       "capacity":352,  "price":54000,  "solar":False, "free_gen":False, "image": ""},
     {"name":"Neo-528",       "capacity":528,  "price":63000,  "solar":False, "free_gen":True,  "image": ""},
     {"name":"Neo-616",       "capacity":616,  "price":66000,  "solar":False, "free_gen":True,  "image": ""},
@@ -92,7 +92,7 @@ def price_page_text(page:int=1, per_page:int=6) -> str:
     start = (page-1)*per_page
     chunk = items[start:start+per_page]
     lines = [product_line(p) for p in chunk]
-    footer = f"\n\nPage {page}/{pages}. Type *next*/*back* to browse, or type a *capacity number* (e.g., 204 or 528)."
+    footer = f"\n\n_Page {page}/{pages}_. Type *next* or *back* to see more capacities or type *the incubator size that you have in mind* (e.g. 60, 204, 528, 1000 etc)."
     return "🐣 *Neochicks Price List*\n" + "\n".join(lines) + footer
 
 def find_by_capacity(cap:int):
