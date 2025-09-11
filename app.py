@@ -30,7 +30,7 @@ def send_image(to: str, link: str, caption: str = ""):
     r = requests.post(url, headers=_headers(), json=payload, timeout=30); r.raise_for_status(); return r.json()
 
 CATALOG = [
-    {"name":"Neo-56 Solar","capacity":56,"price":13000,"solar":True,"free_gen":False,"image":""},
+    {"name":"56 Eggs Incubator","capacity":56,"price":13000,"solar":True,"free_gen":False,"image":""},
     {"name":"Neo-64 Solar","capacity":64,"price":14000,"solar":True,"free_gen":False,"image":""},
     {"name":"Neo-104 Solar","capacity":104,"price":19000,"solar":True,"free_gen":False,"image":""},
     {"name":"Neo-128 Solar","capacity":128,"price":20000,"solar":True,"free_gen":False,"image":""},
@@ -69,7 +69,7 @@ def ksh(n:int) -> str:
 def product_line(p:dict) -> str:
     tag = " (Solar)" if p.get("solar") else ""
     gen = " + *Free Backup Generator*" if p.get("free_gen") else ""
-    return f"- {p['name']}{tag} — {p['capacity']} eggs → {ksh(p['price'])}{gen}"
+    return f"- {p['name']}{tag} — {ksh(p['price'])}{gen}"
 
 def price_page_text(page:int=1, per_page:int=6) -> str:
     items = sorted(CATALOG, key=lambda x: x["capacity"])
