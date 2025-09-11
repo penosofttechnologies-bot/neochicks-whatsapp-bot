@@ -72,7 +72,7 @@ def product_line(p:dict) -> str:
     gen = " + *Free Backup Generator*" if p.get("free_gen") else ""
     return f"- {p['name']}{tag} — {ksh(p['price'])}{gen}"
 
-def price_page_text(page:int=1, per_page:int=6) -> str:
+def price_page_text(page:int=1, per_page:int=12) -> str:
     items = sorted(CATALOG, key=lambda x: x["capacity"])
     total = len(items)
     pages = max(1, (total + per_page - 1)//per_page)
@@ -81,7 +81,7 @@ def price_page_text(page:int=1, per_page:int=6) -> str:
     chunk = items[start:start+per_page]
     lines = [product_line(p) for p in chunk]
     footer = f"\n\nPage {page}/{pages}. Type *next* or *back* to see more capacities, or type a *number of eggs that you have in mind* (e.g. 64, 100, 204, 528, 1000 etc)."
-    return "🐣 *Neochicks Price List*\n" + "\n".join(lines) + footer
+    return "🐣 *Neochicks Incubators Price List*\n" + "\n".join(lines) + footer
 
 def find_by_capacity(cap:int):
     items = sorted(CATALOG, key=lambda x: x["capacity"])
