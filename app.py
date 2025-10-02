@@ -203,7 +203,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["state"] = None
         return {"text": (
             "🛠️ Quick checks:\n"
-            "1) Temp 37.5°C (±0.2)\n"
+            "1) Temp 37.8°C (±0.2)\n"
             "2) Humidity 45–55% set / 65% hatch\n"
             "3) Turning 3–5×/day (auto OK)\n"
             "4) Candle day 7 & 14; remove clears\n"
