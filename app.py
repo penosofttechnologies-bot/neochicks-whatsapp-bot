@@ -124,9 +124,9 @@ def ksh(n:int) -> str:
     return f"KSh {n:,.0f}"
 
 def product_line(p:dict) -> str:
-    tag = " (Solar)" if p.get("solar") else ""
+    tag = " (Solar/Electric)" if p.get("solar") else ""
     gen = " + *Free Backup Generator*" if p.get("free_gen") else ""
-    return f"- {p['name']}{tag} — {p['capacity']} eggs → {ksh(p['price'])}{gen}"
+    return f"- {p['name']}{tag} → {ksh(p['price'])}{gen}"
 
 def price_page_text(page:int=1, per_page:int=6) -> str:
     items = sorted(CATALOG, key=lambda x: x["capacity"])
