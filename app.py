@@ -137,7 +137,7 @@ def price_page_text(page:int=1, per_page:int=12) -> str:
     chunk = items[start:start+per_page]
     lines = [product_line(p) for p in chunk]
     footer = (
-        "\n\nPage " + str(page) + "/" + str(pages) +
+        "\n\nPage " + str(page) + " of 2" + str(pages) +
         ". Type *next* to see more, or type a *capacity that you have in mind* (e.g., 100, 200, 528, 1000 etc)."
     )
     return "🐣 *Capacities with Prices*\n" + "\n".join(lines) + footer
@@ -167,7 +167,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     after_note = ("\n\n⏰ " + AFTER_HOURS_NOTE) if is_after_hours() else ""
 
     # MENU
-    if low in {"", "hi", "hello", "menu", "start"}:
+    if low in {"", "hi", "hello", "menu", "start", "want", "incubator"}:
         return {"text": WELCOME_TEXT + after_note, "buttons": MENU_BUTTONS}
 
     # AGENT
