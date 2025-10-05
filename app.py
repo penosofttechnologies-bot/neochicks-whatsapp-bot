@@ -137,7 +137,7 @@ def price_page_text(page:int=1, per_page:int=12) -> str:
     chunk = items[start:start+per_page]
     lines = [product_line(p) for p in chunk]
     footer = (
-        "\n\nPage " + str(page) + " of 2" + str(pages) +
+        "\n\nPage " + str(page) + " of " + str(pages) +
         ". Type *next* to see more, or type a *capacity that you have in mind* (e.g., 100, 200, 528, 1000 etc)."
     )
     return "🐣 *Capacities with Prices*\n" + "\n".join(lines) + footer
