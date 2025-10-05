@@ -55,9 +55,9 @@ WELCOME_TEXT = (
 )
 
 MENU_BUTTONS = [
-    "Capacities with Prices 💰📦",
+    "Prices/Capacities 💰📦",
     "Delivery Terms 🚚",
-    "Troubleshoot my incubators 🛠️",
+    "Incubator issue 🛠️",
     "Talk to an Agent 👩🏽‍💼"
 ]
 
@@ -75,28 +75,46 @@ AFTER_HOURS_NOTE = "We are currently off till early morning."
 # Catalog (Prices & Images)
 # =========================
 CATALOG = [
-    {"name":"Neo-56 Solar","capacity":56,"price":13000,"solar":True,"free_gen":False,"image":""},
-    {"name":"Neo-64 Solar","capacity":64,"price":14000,"solar":True,"free_gen":False,"image":""},
-    {"name":"Neo-104 Solar","capacity":104,"price":19000,"solar":True,"free_gen":False,"image":""},
-    {"name":"Neo-128 Solar","capacity":128,"price":20000,"solar":True,"free_gen":False,"image":""},
-    {"name":"Neo-192 Solar","capacity":192,"price":28000,"solar":True,"free_gen":False,"image":""},
-    {"name":"Neo-204 Solar","capacity":204,"price":30000,"solar":True,"free_gen":False,
+    {"name":"56 Eggs","capacity":56,"price":13000,"solar":True,"free_gen":False,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2018/12/56-Eggs-solar-electric-incubator-1-600x449.png"},
+    {"name":"64 Eggs","capacity":64,"price":14000,"solar":True,"free_gen":False,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/64-Eggs-solar-electric-incubator-e1630976080329-600x450.jpg"},
+    {"name":"112 Eggs","capacity":104,"price":19000,"solar":True,"free_gen":False,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/104-Eggs-Incubator-1.png"},
+    {"name":"128 Eggs","capacity":128,"price":20000,"solar":True,"free_gen":False,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/128-Eggs-solar-incubator-2.png"},
+    {"name":"192 Eggsr","capacity":192,"price":28000,"solar":True,"free_gen":False,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/192-egg-incubator-1-600x600.jpg"},
+    {"name":"204 Eggs","capacity":204,"price":30000,"solar":True,"free_gen":False,
      "image":"https://neochickspoultry.com/wp-content/uploads/2025/07/204-eggs-incubator-600x650.jpg"},
-    {"name":"Neo-256 Solar","capacity":256,"price":33000,"solar":True,"free_gen":False,"image":""},
+    {"name":"256 Eggs","capacity":256,"price":33000,"solar":True,"free_gen":False,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2023/01/256-eggs-large-photo-600x676.jpeg"},
     {"name":"Neo-264","capacity":264,"price":45000,"solar":False,"free_gen":False,
      "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/264-Eggs-automatic-incubator-1.jpg"},
-    {"name":"Neo-300 Solar","capacity":300,"price":52000,"solar":True,"free_gen":False,"image":""},
-    {"name":"Neo-352","capacity":352,"price":54000,"solar":False,"free_gen":False,"image":""},
-    # Free backup generator for all below:
-    {"name":"Neo-528","capacity":528,"price":63000,"solar":False,"free_gen":True,"image":""},
-    {"name":"Neo-616","capacity":616,"price":66000,"solar":False,"free_gen":True,"image":""},
-    {"name":"Neo-880","capacity":880,"price":75000,"solar":False,"free_gen":True,"image":""},
-    {"name":"Neo-1056","capacity":1056,"price":80000,"solar":False,"free_gen":True,"image":""},
-    {"name":"Neo-1232","capacity":1232,"price":90000,"solar":False,"free_gen":True,"image":""},
-    {"name":"Neo-1584","capacity":1584,"price":115000,"solar":False,"free_gen":True,"image":""},
-    {"name":"Neo-2112","capacity":2112,"price":120000,"solar":False,"free_gen":True,"image":""},
-    {"name":"Neo-4928","capacity":4928,"price":230000,"solar":False,"free_gen":True,"image":""},
-    {"name":"Neo-5280","capacity":5280,"price":240000,"solar":False,"free_gen":True,"image":""},
+    {"name":"300 Eggs","capacity":300,"price":52000,"solar":True,"free_gen":False,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/300-Eggs-solar-incubator.jpg"},
+     {"name":"350 Eggs","capacity":350,"price":54000,"solar":True,"free_gen":False,
+      "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/300-Eggs-solar-incubator.jpg"},
+    {"name":"Neo-352","capacity":352,"price":54000,"solar":False,"free_gen":False,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/352-Eggs-automatic-incubator-1.jpg"},
+    {"name":"Neo-528","capacity":528,"price":63000,"solar":False,"free_gen":True,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/528-Eggs-automatic-Incubator-1-600x425.jpg"},
+    {"name":"Neo-616","capacity":616,"price":66000,"solar":False,"free_gen":True,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2022/01/528-inc-600x800.png"},
+    {"name":"Neo-880","capacity":880,"price":75000,"solar":False,"free_gen":True,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/880-Eggs-incubator-2.jpg"},
+    {"name":"Neo-1056","capacity":1056,"price":80000,"solar":False,"free_gen":True,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/1056-full-front-view.jpg"},
+    {"name":"Neo-1232","capacity":1232,"price":90000,"solar":False,"free_gen":True,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/1232-Eggs-automatic-incubator.jpg"},
+    {"name":"Neo-1584","capacity":1584,"price":115000,"solar":False,"free_gen":True,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/1584-Eggs-Incubator.jpg"},
+    {"name":"Neo-2112","capacity":2112,"price":120000,"solar":False,"free_gen":True,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/2112-Eggs-Incubator.png"},
+    {"name":"Neo-4928","capacity":4928,"price":230000,"solar":False,"free_gen":True,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280Incubator.jpg"},
+    {"name":"Neo-5280","capacity":5280,"price":240000,"solar":False,"free_gen":True,
+     "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280-Eggs-Incubator.png"},
 ]
 
 # =========================
