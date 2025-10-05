@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 import os, json, re, requests
 from datetime import datetime
@@ -28,6 +29,31 @@ def send_image(to: str, link: str, caption: str = ""):
     url = f"{GRAPH_BASE}/{PHONE_NUMBER_ID}/messages"
     payload = {"messaging_product":"whatsapp","to":to,"type":"image","image":{"link":link,"caption":caption}}
     r = requests.post(url, headers=_headers(), json=payload, timeout=30); r.raise_for_status(); return r.json()
+
+BUSINESS_NAME = "Neochicks Poultry Ltd."
+CALL_LINE = "0707787884"
+
+WELCOME_TEXT = (
+    "🐣 Karibu *Neochicks Ltd.*\n"
+    "The leading incubators supplier in Kenya and East Africa.\n"
+    "Click one of the options below and I will answer you:\n\n"
+    f"☎️ {CALL_LINE}"
+)
+
+MENU_BUTTONS = [
+    "Capacities with Prices 💰📦",
+    "Delivery Terms 🚚",
+    "Troubleshoot my incubators 🛠️",
+    "Talk to an Agent 👩🏽‍💼"
+]
+
+PAYMENT_NOTE = "Pay on delivery"
+
+def is_after_hours():
+    eat_hour = (datetime.utcnow().hour + 3) % 24
+    return not (6 <= eat_hour < 23)
+
+AFTER_HOURS_NOTE = "We are currently off till early morning."
 
 CATALOG = [
     {"name":"56 Eggs","capacity":56,"price":13000,"solar":True,"free_gen":False,
@@ -72,15 +98,6 @@ CATALOG = [
      "image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280-Eggs-Incubator.png"},
 ]
 
-DELIVERY_ETA = {"nairobi": "same day"}  # else: 24 hours
-
-WELCOME_TEXT = (
-    "🐣 Karibu *Neochicks Poultry Ltd*! 🚛\n\n"
-    "Pick an option or ask anything:\n"
-    "• Prices 💰\n• Capacities 📦\n• Delivery 🚚\n• Troubleshoot 🛠️\n• Agent 👩🏽‍💼\n\n"
-    "This line is *chat-only*. For calls: 0707 787884"
-)
-MENU_BUTTONS = ["Prices 💰", "Capacities 📦", "Delivery 🚚", "Troubleshoot 🛠️", "Agent 👩🏽‍💼"]
 
 def ksh(n:int) -> str:
     return f"KSh {n:,.0f}"
@@ -88,9 +105,9 @@ def ksh(n:int) -> str:
 def product_line(p:dict) -> str:
     tag = " (Solar)" if p.get("solar") else ""
     gen = " + *Free Backup Generator*" if p.get("free_gen") else ""
-    return f"- {p['name']}{tag} — {ksh(p['price'])}{gen}"
+    return f"- {p['name']}{tag} — {p['capacity']} eggs → {ksh(p['price'])}{gen}"
 
-def price_page_text(page:int=1, per_page:int=12) -> str:
+def price_page_text(page:int=1, per_page:int=6) -> str:
     items = sorted(CATALOG, key=lambda x: x["capacity"])
     total = len(items)
     pages = max(1, (total + per_page - 1)//per_page)
@@ -98,8 +115,8 @@ def price_page_text(page:int=1, per_page:int=12) -> str:
     start = (page-1)*per_page
     chunk = items[start:start+per_page]
     lines = [product_line(p) for p in chunk]
-    footer = f"\n\nPage {page}/{pages}. Type *next* or *back* to see more capacities, or type a *number of eggs that you have in mind* (e.g. 64, 100, 204, 528, 1000 etc)."
-    return "🐣 *Neochicks Incubators Price List*\n" + "\n".join(lines) + footer
+    footer = f"\nPage {page}/{pages}. Type *next*/*back* to browse, or type a *capacity number* (e.g., 204 or 528)."
+    return "🐣 *Capacities with Prices*\n" + "\n".join(lines) + footer
 
 def find_by_capacity(cap:int):
     items = sorted(CATALOG, key=lambda x: x["capacity"])
@@ -108,27 +125,27 @@ def find_by_capacity(cap:int):
             return p
     return items[-1] if items else None
 
-SESS = {}  # {phone: {"state": "...", "page": int, "batch": int}}
+SESS = {}
 
-def is_after_hours():
-    hour_utc = datetime.utcnow().hour
-    return not (5 <= hour_utc < 15)  # ≈ 08:30–18:00 EAT
+def delivery_eta_text(county: str) -> str:
+    key = (county or "").strip().lower().split()[0]
+    return "same day" if key == "nairobi" else "24 hours"
 
 def brain_reply(text: str, from_wa: str = "") -> dict:
     t = (text or "").strip()
     low = t.lower()
     sess = SESS.setdefault(from_wa, {"state": None, "page": 1})
 
-    after_note = "\n\n⏰ We’re back at 8:30am EAT. I can still help with basics now." if is_after_hours() else ""
+    after_note = f"\n\n⏰ {AFTER_HOURS_NOTE}" if is_after_hours() else ""
 
     if low in {"", "hi", "hello", "menu", "start"}:
         return {"text": WELCOME_TEXT + after_note, "buttons": MENU_BUTTONS}
 
-    if "agent" in low:
+    if "agent" in low or "talk to an agent" in low:
         SESS[from_wa] = {"state": None, "page": 1}
-        return {"text": "👩🏽‍💼 Connecting you to a Neochicks rep… You can also call 0707 787884."}
+        return {"text": f"👩🏽‍💼 Connecting you to a Neochicks rep… You can also call {CALL_LINE}."}
 
-    if any(k in low for k in ["prices", "price", "bei", "gharama"]):
+    if any(k in low for k in ["capacities", "capacity", "capacities with prices", "prices", "price", "bei", "gharama"]):
         sess["state"] = "prices"; sess["page"] = 1
         return {"text": price_page_text(page=1)}
 
@@ -150,73 +167,60 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 out = {"text": f"📦 *{p['name']}*{extra}\n"
                                f"Capacity: {p['capacity']} eggs\n"
                                f"Price: {ksh(p['price'])}{gen}\n\n"
-                               f"We offer Free Delivery and Training."}
+                               f"Reply with your *county* for delivery ETA and quote. {PAYMENT_NOTE}."}
                 if p.get("image"):
                     out.update({"mediaUrl": p["image"], "caption": f"{p['name']} — {ksh(p['price'])}"})
                 return out
 
-    if any(k in low for k in ["capacities", "recommend", "size"]):
-        sess["state"] = "await_batch"
-        return {"text": "Great—what’s your *batch size per set* (eggs)?"}
-
-    if sess.get("state") == "await_batch":
-        m = re.search(r"([0-9]{2,5})", low)
-        if not m:
-            return {"text": "Enter a number for your *batch size* (e.g., 264)."}
-        sess["batch"] = int(m.group(1))
-        sess["state"] = "await_sets"
-        return {"text": "How many *sets per month* do you plan (e.g., 2)?"}
-
-    if sess.get("state") == "await_sets":
-        m = re.search(r"([0-9]{1,3})", low)
-        if not m:
-            return {"text": "Enter a number of *sets per month* (e.g., 2)."}
-        sets_pm = int(m.group(1))
-        batch = int(sess.get("batch", 0))
-        best = find_by_capacity(batch)
-        alt  = find_by_capacity(max(1, batch//2))
-        msg = (f"📦 Recommended: *{best['name']}* ({best['capacity']} eggs) – {ksh(best['price'])}."
-               + (" (Solar)" if best["solar"] else "")
-               + ("\n🎁 Includes *Free Backup Generator*" if best["free_gen"] else ""))
-        if alt and alt["capacity"] < best["capacity"]:
-            msg += f"\nOr 2× *{alt['name']}* for staggered hatches."
-        sess["state"] = None
-        out = {"text": msg + "\n\nWant delivery ETA? Tell me your *county*."}
-        if best.get("image"):
-            out.update({"mediaUrl": best["image"], "caption": f"{best['name']} — {ksh(best['price'])}"})
-        return out
-
-    if "delivery" in low or "deliver" in low:
+    if "delivery" in low or "deliver" in low or "delivery terms" in low:
         sess["state"] = "await_county"
-        return {"text": "🚚 We deliver countrywide. Payment is *on delivery*. Which *county* are you in?"}
+        return {"text": f"🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. {PAYMENT_NOTE}.
+Which *county* are you in?"}
 
     if sess.get("state") == "await_county":
         county = re.sub(r"[^a-z ]", "", low).strip()
         if not county:
             return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
         sess["state"] = None
-        key = county.split()[0].lower()
-        eta = "same day" if key == "nairobi" else "24 hours"
-        return {"text": f"📍 {county.title()} → Typical delivery {eta}. *Pay on delivery.*"}
+        eta = delivery_eta_text(county)
+        return {"text": f"📍 {county.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.
+Need a recommendation or pro-forma invoice?"}
 
-    if any(k in low for k in ["troubleshoot", "hatch rate", "problem"]):
+    if any(k in low for k in ["troubleshoot", "hatch rate", "problem", "fault", "issue"]):
         sess["state"] = None
         return {"text": (
-            "🛠️ Quick checks:\n"
-            "1) Temp 37.8°C (±0.2)\n"
-            "2) Humidity 45–55% set / 65% hatch\n"
-            "3) Turning 3–5×/day (auto OK)\n"
-            "4) Candle day 7 & 14; remove clears\n"
-            "5) Ventilation okay (no drafts)\n\n"
-            "Still low hatch rate? Type *Agent* and our tech will help."
+            "🛠️ Quick checks:
+"
+            "1) Temp 37.5°C (±0.2)
+"
+            "2) Humidity 45–55% set / 65% hatch
+"
+            "3) Turning 3–5×/day (auto OK)
+"
+            "4) Candle day 7 & 14; remove clears
+"
+            "5) Ventilation okay (no drafts)
+
+"
+            "Still low hatch rate? Type *Talk to an Agent* and our tech will help."
         )}
 
     if re.search(r"warranty|guarantee", low):
-        return {"text": "✅ 12-month warranty + free setup guidance by phone/video."}
-    if re.search(r"backup|inverter|power", low):
-        return {"text": "🔋 Power backup available (inverter + battery). We size it to your model—ask for a quote."}
+        return {"text": "✅ 12-month warranty + free setup guidance. We also connect you to our technician from your nearest town."}
 
-    return {"text": "Got it! Type *Prices*, *Capacities*, *Delivery*, *Troubleshoot*, or *Agent*.", "buttons": MENU_BUTTONS}
+    if re.search(r"backup|inverter|power|solar", low):
+        return {"text": "🔋 Solar panels + battery available (sized per model). We assist to outsource solar packages depending on your incubator power rating."}
+
+    if re.search(r"sell.*chicks|chicks|kienyeji", low):
+        return {"text": "🐥 Improved Kienyeji chicks available — 3 days old up to 2 months old. Call: 0793585968."}
+
+    if re.search(r"payment|mpesa|cash", low):
+        return {"text": f"💳 Any mode of payment acceptable. {PAYMENT_NOTE}."}
+
+    if re.search(r"include.*solar|price.*include.*solar|solar.*include", low):
+        return {"text": "ℹ️ Prices do not include solar panels. We guide you to get the best solar/battery package for your incubator."}
+
+    return {"text": "Got it! Tap *Capacities with Prices*, *Delivery Terms*, *Troubleshoot my incubators*, or *Talk to an Agent*.", "buttons": MENU_BUTTONS}
 
 @app.get("/health")
 def health():
