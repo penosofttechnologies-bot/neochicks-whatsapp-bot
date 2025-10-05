@@ -176,6 +176,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["state"] = "await_county"
         return {"text": f"🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. {PAYMENT_NOTE}.
 Which *county* are you in?"}
+        
+
+     return {"text": f"🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. {PAYMENT_NOTE}.
+Which *county* are you in?"}
 
     if sess.get("state") == "await_county":
         county = re.sub(r"[^a-z ]", "", low).strip()
@@ -183,8 +187,12 @@ Which *county* are you in?"}
             return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
         sess["state"] = None
         eta = delivery_eta_text(county)
-        return {"text": f"📍 {county.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.
-Need a recommendation or pro-forma invoice?"}
+return {
+    "text": (
+        f"📍 {county.title()} → Typical delivery {eta}. {PAYMENT_NOTE}."
+        "\nNeed a recommendation or pro-forma invoice?"
+    )
+}
 
     if any(k in low for k in ["troubleshoot", "hatch rate", "problem", "fault", "issue"]):
         sess["state"] = None
