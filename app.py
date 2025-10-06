@@ -167,7 +167,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     after_note = ("\n\n⏰ " + AFTER_HOURS_NOTE) if is_after_hours() else ""
 
     # MENU
-    if low in {"", "hi", "hello", "menu", "start", "want", "incubator"}:
+    if low in {"", "hi", "hello", "menu", "start", "want", "incubator", "need an incubator"}:
         return {"text": WELCOME_TEXT + after_note, "buttons": MENU_BUTTONS}
 
     # AGENT
@@ -231,12 +231,13 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["state"] = None
         return {"text": (
             "🛠️ Quick checks:\n"
-            "1) Temp 37.5°C (±0.2)\n"
-            "2) Humidity 45–55% set / 65% hatch\n"
+            "1) Temp 37.8°C (±0.2)\n"
+            "2) Humidity 55–60% set / 65% hatch\n"
             "3) Turning 3–5×/day (auto OK)\n"
             "4) Candle day 7 & 14; remove clears\n"
-            "5) Ventilation okay (no drafts)\n\n"
-            "Still low hatch rate? Type *Talk to an Agent* and our tech will help."
+            "5) Ventilation okay (no drafts)\n"
+            "6) Disinfection after hatching?\n\n"
+            "Do you check all abobe? Type *Talk to us: 0707787884* and we will help."
         )}
 
     # =========================
@@ -258,7 +259,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         return {"text": "ℹ️ Prices do not include solar panels. We guide you to get the best solar/battery package for your incubator."}
 
     # Fallback
-    return {"text": "Got it! Tap *Capacities with Prices*, *Delivery Terms*, *Troubleshoot my incubators*, or *Talk to an Agent*.", "buttons": MENU_BUTTONS}
+    return {"text": "Got it! Tap *Prices/Capacities*, *Delivery Terms*, *Incubator issue*, or *Talk to an Us*.", "buttons": MENU_BUTTONS}
 
 # =========================
 # Flask routes
