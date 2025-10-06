@@ -289,12 +289,19 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     if re.search(r"include.*solar|price.*include.*solar|solar.*include", low):
         return {"text": "ℹ️ Prices do not include solar panels. We guide you to get the best solar/battery package for your incubator."}
 
-   return {
-    "text": (
-        f"📍 {county.title()} → Typical delivery {eta}. {PAYMENT_NOTE}."
-        "\nNeed a recommendation or pro-forma invoice?"
-    )
-}
+ # -------------------------------
+    # Stateless county detection (NEW)
+    # -------------------------------
+    c_guess = guess_county(low)
+    if c_guess:
+        eta = delivery_eta_text(c_guess)
+        return {
+            "text": f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nNeed a recommendation or pro-forma invoice?"
+        }
+
+    # -------------------------------
+    # Default / fallback reply
+    # -------------------------------
     # Fallback
     return {"text": "Got it! Tap *Prices/Capacities*, *Delivery Terms*, *Incubator issue*, or *Talk to an Us*.", "buttons": MENU_BUTTONS}
 
