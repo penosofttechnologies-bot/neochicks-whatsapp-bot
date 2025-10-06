@@ -239,6 +239,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 out = {"text": text}
                 if p.get("image"):
                     out.update({"mediaUrl": p["image"], "caption": p['name'] + " — " + ksh(p['price'])})
+
+                # NEW: remember last viewed product for quoting
+                sess["last_product"] = p
+
                 return out
 
     # DELIVERY TERMS
@@ -252,6 +256,12 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
         sess["state"] = None
         eta = delivery_eta_text(county)
+
+        # NEW — remember location and advance to await_quote
+        sess["last_county"] = county.title()
+        sess["last_eta"] = eta
+        sess["state"] = "await_quote"
+
         text = (
             "📍 " + county.title() + " → Typical delivery " + eta + ". " + PAYMENT_NOTE + ".\n"
             "Need a recommendation or pro-forma invoice?"
@@ -290,12 +300,77 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     if re.search(r"include.*solar|price.*include.*solar|solar.*include", low):
         return {"text": "ℹ️ Prices do not include solar panels. We guide you to get the best solar/battery package for your incubator."}
 
- # -------------------------------
+    # --------------------------------
+    # YES to recommendation / pro-forma (NEW)
+    # --------------------------------
+    if low in {"yes", "yeah", "yep", "ok", "okay", "sure"} and sess.get("state") == "await_quote":
+        product = sess.get("last_product")
+        county  = sess.get("last_county")
+        eta     = sess.get("last_eta")
+
+        # Ask for missing info
+        if not product:
+            sess["state"] = "prices"
+            return {"text": (
+                "Great! Tell me the capacity you want (e.g., 204 or 528) so I can prepare your quote.\n\n"
+                + price_page_text(page=1)
+            )}
+
+        if not county:
+            sess["state"] = "await_county"
+            return {"text": "Which *county* are you in? (e.g., Nairobi, Nakuru, Mombasa)"}
+
+        # Build the quote
+        name  = product["name"]
+        cap   = product["capacity"]
+        price = product["price"]
+        solar = " (Solar)" if product.get("solar") else ""
+        gen   = "\n🎁 Includes *Free Backup Generator*" if product.get("free_gen") else ""
+
+        quote_text = (
+            "🧾 *Pro-forma Quote*\n"
+            f"Item: {name}{solar}\n"
+            f"Capacity: {cap} eggs\n"
+            f"Price: {ksh(price)}{gen}\n"
+            f"Delivery: {county} → {eta} ({PAYMENT_NOTE})\n"
+            "Support: Setup guidance + 12-month warranty\n\n"
+            "Reply with *CONFIRM* to proceed, or type a different capacity."
+        )
+
+        sess["state"] = "await_confirm"
+        return {"text": quote_text}
+
+    # --------------------------------
+    # CONFIRM order (NEW)
+    # --------------------------------
+    if low.strip() == "confirm" and sess.get("state") == "await_confirm":
+        product = sess.get("last_product")
+        county  = sess.get("last_county")
+        if not product or not county:
+            sess["state"] = None
+            return {"text": "Let’s pick details again. Type a capacity (e.g., 264) or say your county."}
+
+        # (Optional) Hook: send an email/SMS or write to a Google Sheet here
+
+        sess["state"] = None
+        return {"text": (
+            "✅ Noted! A sales agent will reach out shortly to finalize your order.\n"
+            f"You can also call {CALL_LINE} anytime.\n\n"
+            "Anything else I can help you with?"
+        )}
+
+    # -------------------------------
     # Stateless county detection (NEW)
     # -------------------------------
     c_guess = guess_county(low)
     if c_guess:
         eta = delivery_eta_text(c_guess)
+
+        # NEW — remember location and advance state
+        sess["last_county"] = c_guess.title()
+        sess["last_eta"] = eta
+        sess["state"] = "await_quote"
+
         return {
             "text": f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nNeed a recommendation or pro-forma invoice?"
         }
@@ -303,7 +378,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     # -------------------------------
     # Default / fallback reply
     # -------------------------------
-    # Fallback
     return {"text": "Got it! Tap *Prices/Capacities*, *Delivery Terms*, *Incubator issue*, or *Talk to an Us*.", "buttons": MENU_BUTTONS}
 
 # =========================
