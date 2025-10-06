@@ -57,7 +57,7 @@ WELCOME_TEXT = (
 MENU_BUTTONS = [
     "Prices/Capacities 💰📦",
     "Delivery Terms 🚚",
-    "Incubator issue 🛠️",
+    "Incubator issues 🛠️",
     "Talk to an Agent 👩🏽‍💼"
 ]
 
