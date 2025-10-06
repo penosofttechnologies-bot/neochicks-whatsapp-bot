@@ -187,6 +187,7 @@ def delivery_eta_text(county: str) -> str:
     key = (county or "").strip().lower().split()[0]
     return "same day" if key == "nairobi" else "24 hours"
 
+
 # =========================
 # Brain / Router
 # =========================
