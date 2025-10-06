@@ -5,6 +5,37 @@ from datetime import datetime
 # =========================
 # Config (env variables)
 # =========================
+
+COUNTIES = {
+    "baringo","bomet","bungoma","busia","elgeyo marakwet","embu","garissa","homa bay","isiolo",
+    "kajiado","kakamega","kericho","kiambu","kilifi","kirinyaga","kisii","kisumu","kitui",
+    "kwale","laikipia","lamu","machakos","makueni","mandera","marsabit","meru","migori","mombasa",
+    "murang'a","muranga","nairobi","nakuru","nandi","narok","nyamira","nyandarua","nyeri",
+    "samburu","siaya","taita taveta","tana river","tharaka nithi","trans nzoia","turkana",
+    "uasin gishu","vihiga","wajir","west pokot"
+}
+
+def guess_county(text: str) -> str | None:
+    # normalize & keep letters/spaces
+    cleaned = re.sub(r"[^a-z ]", "", text.lower()).strip()
+    if not cleaned:
+        return None
+    # exact match
+    if cleaned in COUNTIES:
+        return cleaned
+    # handle trailing "county"
+    if cleaned.endswith(" county"):
+        c = cleaned[:-7].strip()
+        if c in COUNTIES:
+            return c
+    # 2-word counties often typed as one or two words; try compacting spaces
+    parts = cleaned.split()
+    if len(parts) in (2, 3):
+        joined = " ".join(parts)
+        if joined in COUNTIES:
+            return joined
+    return None
+
 VERIFY_TOKEN   = os.getenv("VERIFY_TOKEN", "changeme")
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
 PHONE_NUMBER_ID= os.getenv("PHONE_NUMBER_ID", "")
@@ -257,6 +288,12 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
     if re.search(r"include.*solar|price.*include.*solar|solar.*include", low):
         return {"text": "ℹ️ Prices do not include solar panels. We guide you to get the best solar/battery package for your incubator."}
+
+    # County typed even if session was lost (stateless delivery ETA)
+c_guess = guess_county(low)
+if c_guess:
+    eta = delivery_eta_text(c_guess)
+    return {"text": f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nNeed a recommendation or pro-forma invoice?"}
 
     # Fallback
     return {"text": "Got it! Tap *Prices/Capacities*, *Delivery Terms*, *Incubator issue*, or *Talk to an Us*.", "buttons": MENU_BUTTONS}
