@@ -48,7 +48,7 @@ app = Flask(__name__)
 # =========================
 def send_email(subject: str, body: str):
     host = os.getenv("SMTP_HOST", "")
-    port = int(os.getenv("SMTP_PORT", "465"))
+    port = int(os.getenv("SMTP_PORT", "587"))
     user = os.getenv("SMTP_USER", "")
     pwd  = os.getenv("SMTP_PASS", "")
     to   = os.getenv("SALES_EMAIL", user)
@@ -60,7 +60,10 @@ def send_email(subject: str, body: str):
     msg = "From: " + user + "\r\nTo: " + to + "\r\nSubject: " + subject + "\r\n\r\n" + body
     ctx = ssl.create_default_context()
     try:
-        with smtplib.SMTP_SSL(host, port, context=ctx, timeout=20) as server:
+        with smtplib.SMTP(host, port, timeout=20) as server:
+            server.ehlo()
+            server.starttls(context=ctx)
+            server.ehlo()
             server.login(user, pwd)
             server.sendmail(user, [to], msg.encode("utf-8"))
         return True
