@@ -488,5 +488,9 @@ def webhook():
         print("Webhook error:", e, "payload:", json.dumps(data)[:1000])
         return "error", 200
 
+@app.get("/testmail")
+def testmail():
+    ok = send_email("Neochicks Test Email", "It works! ✅")
+    return ("OK" if ok else "FAIL"), 200
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 3000)))
