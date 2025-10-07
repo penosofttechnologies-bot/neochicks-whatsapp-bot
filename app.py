@@ -47,28 +47,35 @@ app = Flask(__name__)
 # Email helper (SMTP)
 # =========================
 def send_email(subject: str, body: str):
-    host = os.getenv("SMTP_HOST", "")
-    port = int(os.getenv("SMTP_PORT", "587"))
-    user = os.getenv("SMTP_USER", "")
-    pwd  = os.getenv("SMTP_PASS", "")
-    to   = os.getenv("SALES_EMAIL", user)
+    api_key = os.getenv("SENDGRID_API_KEY", "")
+    sender  = os.getenv("SENDGRID_FROM", "")
+    to      = os.getenv("SALES_EMAIL", sender)
 
-    if not (host and port and user and pwd and to):
-        print("Email not sent—missing SMTP env vars")
+    if not (api_key and sender and to):
+        print("Email not sent—missing SENDGRID_API_KEY/SENDGRID_FROM/SALES_EMAIL")
         return False
 
-    msg = "From: " + user + "\r\nTo: " + to + "\r\nSubject: " + subject + "\r\n\r\n" + body
-    ctx = ssl.create_default_context()
     try:
-        with smtplib.SMTP(host, port, timeout=20) as server:
-            server.ehlo()
-            server.starttls(context=ctx)
-            server.ehlo()
-            server.login(user, pwd)
-            server.sendmail(user, [to], msg.encode("utf-8"))
-        return True
+        r = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "personalizations": [{"to": [{"email": to}]}],
+                "from": {"email": sender, "name": "Neochicks Bot"},
+                "subject": subject,
+                "content": [{"type": "text/plain", "value": body}],
+            },
+            timeout=20,
+        )
+        if r.status_code in (200, 202):
+            return True
+        print("SendGrid error:", r.status_code, r.text)
+        return False
     except Exception as e:
-        print("Email send error:", e)
+        print("SendGrid exception:", e)
         return False
 
 # =========================
