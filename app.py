@@ -303,7 +303,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     # --------------------------------
     # YES to recommendation / pro-forma (NEW)
     # --------------------------------
-    if low in {"yes", "yeah", "yep", "ok", "okay", "sure"} and sess.get("state") == "await_quote":
+    if low in {"yes", "yeah", "yep", "ok", "okay", "sure", "invoice", "profoma", "pro-forma", "quote", "quotation", "recommendation"} and sess.get("state") == "await_quote":
         product = sess.get("last_product")
         county  = sess.get("last_county")
         eta     = sess.get("last_eta")
