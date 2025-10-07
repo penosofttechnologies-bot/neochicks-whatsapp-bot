@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-import os, json, re, requests
+import os, json, re, requests, smtplib, ssl
 from datetime import datetime
 
 # =========================
@@ -42,6 +42,31 @@ PHONE_NUMBER_ID= os.getenv("PHONE_NUMBER_ID", "")
 GRAPH_BASE     = "https://graph.facebook.com/v20.0"
 
 app = Flask(__name__)
+
+# =========================
+# Email helper (SMTP)
+# =========================
+def send_email(subject: str, body: str):
+    host = os.getenv("SMTP_HOST", "")
+    port = int(os.getenv("SMTP_PORT", "465"))
+    user = os.getenv("SMTP_USER", "")
+    pwd  = os.getenv("SMTP_PASS", "")
+    to   = os.getenv("SALES_EMAIL", user)
+
+    if not (host and port and user and pwd and to):
+        print("Email not sent—missing SMTP env vars")
+        return False
+
+    msg = "From: " + user + "\r\nTo: " + to + "\r\nSubject: " + subject + "\r\n\r\n" + body
+    ctx = ssl.create_default_context()
+    try:
+        with smtplib.SMTP_SSL(host, port, context=ctx, timeout=20) as server:
+            server.login(user, pwd)
+            server.sendmail(user, [to], msg.encode("utf-8"))
+        return True
+    except Exception as e:
+        print("Email send error:", e)
+        return False
 
 # =========================
 # HTTP send helpers
@@ -240,12 +265,12 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 if p.get("image"):
                     out.update({"mediaUrl": p["image"], "caption": p['name'] + " — " + ksh(p['price'])})
 
-                # NEW: remember last viewed product for quoting
+                # remember last viewed product for quoting
                 sess["last_product"] = p
 
                 return out
 
-    # DELIVERY TERMS
+    # DELIVERY TERMS  -> ask county -> (NEW) ask name -> phone -> pro-forma -> CONFIRM
     if ("delivery" in low) or ("deliver" in low) or ("delivery terms" in low):
         sess["state"] = "await_county"
         return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. " + PAYMENT_NOTE + ".\nWhich *county* are you in?"}
@@ -254,19 +279,53 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         county = re.sub(r"[^a-z ]", "", low).strip()
         if not county:
             return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
-        sess["state"] = None
         eta = delivery_eta_text(county)
 
-        # NEW — remember location and advance to await_quote
+        # remember location
         sess["last_county"] = county.title()
         sess["last_eta"] = eta
-        sess["state"] = "await_quote"
 
-        text = (
-            "📍 " + county.title() + " → Typical delivery " + eta + ". " + PAYMENT_NOTE + ".\n"
-            "Need a recommendation or pro-forma invoice?"
+        # (NEW) continue to name capture
+        sess["state"] = "await_name"
+        return {"text": "📍 " + county.title() + " → Typical delivery " + eta + ". " + PAYMENT_NOTE + ".\nGreat! Please share your *full name* for the pro-forma."}
+
+    # (NEW) Ask for customer name
+    if sess.get("state") == "await_name":
+        name = t.strip()
+        if len(name) < 2:
+            return {"text": "Please type your *full name* (e.g., Jane Wanjiku)."}
+        sess["customer_name"] = name
+        sess["state"] = "await_phone"
+        return {"text": "Thanks! Now your *phone number* (for delivery coordination):"}
+
+    # (NEW) Ask for phone, build pro-forma, ask to CONFIRM
+    if sess.get("state") == "await_phone":
+        phone = re.sub(r"[^0-9+ ]", "", t)
+        if len(re.sub(r"\D", "", phone)) < 9:
+            return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
+
+        sess["customer_phone"] = phone
+        sess["state"] = "await_confirm"
+
+        p = sess.get("last_product") or {}
+        county = sess.get("last_county", "-")
+        eta = sess.get("last_eta", "24 hours")
+        model = p.get("name", "—")
+        cap   = p.get("capacity", "—")
+        price = ksh(p.get("price", 0)) if "price" in p else "—"
+
+        proforma = (
+            "🧾 *Pro-Forma Invoice*\n"
+            "Customer: " + sess["customer_name"] + "\n"
+            "Phone: " + sess["customer_phone"] + "\n"
+            "County: " + county + "\n"
+            "Item: " + model + " (" + str(cap) + " eggs)\n"
+            "Price: " + price + "\n"
+            "Delivery: " + eta + " | " + PAYMENT_NOTE + "\n"
+            "—\n"
+            "If this looks correct, reply *CONFIRM* to place the order, or type *EDIT* to change details."
         )
-        return {"text": text}
+        return {"text": proforma}
 
     # TROUBLESHOOT
     if any(k in low for k in ["troubleshoot", "hatch rate", "problem", "fault", "issue"]):
@@ -301,14 +360,12 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         return {"text": "ℹ️ Prices do not include solar panels. We guide you to get the best solar/battery package for your incubator."}
 
     # --------------------------------
-    # YES to recommendation / pro-forma (NEW)
+    # YES to recommendation / pro-forma (adjusted to collect name/phone first)
     # --------------------------------
-    if low in {"yes", "yeah", "yep", "ok", "okay", "sure", "invoice", "profoma", "pro-forma", "quote", "quotation", "recommendation"} and sess.get("state") == "await_quote":
+    if low in {"yes", "yeah", "yep", "ok", "okay", "sure", "invoice", "profoma", "pro-forma", "quote", "quotation", "recommendation"} and sess.get("state") in {"await_quote", None}:
         product = sess.get("last_product")
         county  = sess.get("last_county")
-        eta     = sess.get("last_eta")
 
-        # Ask for missing info
         if not product:
             sess["state"] = "prices"
             return {"text": (
@@ -320,65 +377,52 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             sess["state"] = "await_county"
             return {"text": "Which *county* are you in? (e.g., Nairobi, Nakuru, Mombasa)"}
 
-        # Build the quote
-        name  = product["name"]
-        cap   = product["capacity"]
-        price = product["price"]
-        solar = " (Solar)" if product.get("solar") else ""
-        gen   = "\n🎁 Includes *Free Backup Generator*" if product.get("free_gen") else ""
-
-        quote_text = (
-            "🧾 *Pro-forma Quote*\n"
-            f"Item: {name}{solar}\n"
-            f"Capacity: {cap} eggs\n"
-            f"Price: {ksh(price)}{gen}\n"
-            f"Delivery: {county} → {eta} ({PAYMENT_NOTE})\n"
-            "Support: Setup guidance + 12-month warranty\n\n"
-            "Reply with *CONFIRM* to proceed, or type a different capacity."
-        )
-
-        sess["state"] = "await_confirm"
-        return {"text": quote_text}
+        # We have product+county; proceed to name capture
+        sess["state"] = "await_name"
+        return {"text": "Perfect. Please share your *full name* for the pro-forma."}
 
     # --------------------------------
-    # CONFIRM order (NEW)
+    # CONFIRM order -> send email (NEW)
     # --------------------------------
     if low.strip() == "confirm" and sess.get("state") == "await_confirm":
-        product = sess.get("last_product")
-        county  = sess.get("last_county")
-        if not product or not county:
-            sess["state"] = None
-            return {"text": "Let’s pick details again. Type a capacity (e.g., 264) or say your county."}
-
-        # (Optional) Hook: send an email/SMS or write to a Google Sheet here
-
+        p = sess.get("last_product") or {}
+        county = sess.get("last_county", "-")
+        eta = sess.get("last_eta", delivery_eta_text(county))
+        subject = "ORDER CONFIRMED — " + p.get("name","Model") + " for " + sess.get("customer_name","Customer")
+        body = (
+            "New order confirmation from WhatsApp bot\n\n"
+            "Customer Name: " + sess.get("customer_name","") + "\n"
+            "Customer Phone: " + sess.get("customer_phone","") + "\n"
+            "County: " + county + "\n"
+            "Model: " + p.get("name","") + "\n"
+            "Capacity: " + str(p.get("capacity","")) + "\n"
+            "Price: " + ksh(p.get("price",0)) + "\n"
+            "Delivery ETA: " + eta + "\n"
+            "Payment: " + PAYMENT_NOTE + "\n"
+            "Timestamp: " + datetime.utcnow().isoformat() + "Z\n"
+        )
+        ok = send_email(subject, body)
         sess["state"] = None
-        return {"text": (
-            "✅ Noted! A sales agent will reach out shortly to finalize your order.\n"
-            f"You can also call {CALL_LINE} anytime.\n\n"
-            "Anything else I can help you with?"
-        )}
+        if ok:
+            return {"text": "✅ Order confirmed! Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
+        else:
+            return {"text": "✅ Order confirmed! (Heads up: email notification failed, but we have your details. A rep will reach out shortly.)"}
 
     # -------------------------------
-    # Stateless county detection (NEW)
+    # Stateless county detection (now leads into name capture)
     # -------------------------------
     c_guess = guess_county(low)
     if c_guess:
         eta = delivery_eta_text(c_guess)
-
-        # NEW — remember location and advance state
         sess["last_county"] = c_guess.title()
         sess["last_eta"] = eta
-        sess["state"] = "await_quote"
-
-        return {
-            "text": f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nNeed a recommendation or pro-forma invoice?"
-        }
+        sess["state"] = "await_name"
+        return {"text": "📍 " + c_guess.title() + " → Typical delivery " + eta + ". " + PAYMENT_NOTE + ".\nGreat! Please share your *full name* for the pro-forma."}
 
     # -------------------------------
     # Default / fallback reply
     # -------------------------------
-    return {"text": "Got it! Tap *Prices/Capacities*, *Delivery Terms*, *Incubator issue*, or *Talk to an Us*.", "buttons": MENU_BUTTONS}
+    return {"text": "Got it! Tap *Prices/Capacities*, *Delivery Terms*, *Incubator issues*, or *Talk to an Agent*.", "buttons": MENU_BUTTONS}
 
 # =========================
 # Flask routes
