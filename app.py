@@ -16,19 +16,15 @@ COUNTIES = {
 }
 
 def guess_county(text: str) -> str | None:
-    # normalize & keep letters/spaces
     cleaned = re.sub(r"[^a-z ]", "", text.lower()).strip()
     if not cleaned:
         return None
-    # exact match
     if cleaned in COUNTIES:
         return cleaned
-    # handle trailing "county"
     if cleaned.endswith(" county"):
         c = cleaned[:-7].strip()
         if c in COUNTIES:
             return c
-    # 2-word counties often typed as one or two words; try compacting spaces
     parts = cleaned.split()
     if len(parts) in (2, 3):
         joined = " ".join(parts)
@@ -132,7 +128,6 @@ PAYMENT_NOTE = "Pay on delivery"
 # Business hours in EAT: 06:00–23:00
 def is_after_hours():
     eat_hour = (datetime.utcnow().hour + 3) % 24
-    # Open when hour in [06, 23); closed otherwise
     return not (6 <= eat_hour < 23)
 
 AFTER_HOURS_NOTE = "We are currently off till early morning."
@@ -223,7 +218,7 @@ def delivery_eta_text(county: str) -> str:
     return "same day" if key == "nairobi" else "24 hours"
 
 # =========================
-# Pro-forma builder (NEW helper)
+# Pro-forma builder (helper)
 # =========================
 def build_proforma_text(sess: dict) -> str:
     p = sess.get("last_product") or {}
@@ -244,7 +239,8 @@ def build_proforma_text(sess: dict) -> str:
         f"Price: {price}\n"
         f"Delivery: {eta} | {PAYMENT_NOTE}\n"
         "—\n"
-        "If this looks correct, reply *CONFIRM* to place the order, or type *EDIT* to change details."
+        "If this looks correct, reply *CONFIRM* to place the order, or type *EDIT* to change details.\n"
+        "Type *CANCEL* to discard and go back to the main menu."
     )
 
 # =========================
@@ -254,6 +250,12 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     t = (text or "").strip()
     low = t.lower()
     sess = SESS.setdefault(from_wa, {"state": None, "page": 1})
+
+    # Global cancel/back handler during order capture/edit
+    if any(k in low for k in ["cancel", "stop", "abort", "start over", "back to menu", "main menu", "menu"]) and \
+       sess.get("state") in {"await_name","await_phone","await_confirm","edit_menu","edit_name","edit_phone","edit_county","edit_model"}:
+        SESS[from_wa] = {"state": None, "page": 1}
+        return {"text": "❌ Order cancelled. You’re back at the main menu.", "buttons": MENU_BUTTONS}
 
     after_note = ("\n\n⏰ " + AFTER_HOURS_NOTE) if is_after_hours() else ""
 
@@ -298,13 +300,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 out = {"text": text}
                 if p.get("image"):
                     out.update({"mediaUrl": p["image"], "caption": p['name'] + " — " + ksh(p['price'])})
-
-                # remember last viewed product for quoting
                 sess["last_product"] = p
-
                 return out
 
-    # DELIVERY TERMS  -> ask county -> (NEW) ask name -> phone -> pro-forma -> CONFIRM
+    # DELIVERY TERMS  -> ask county -> ask name -> phone -> pro-forma -> CONFIRM
     if ("delivery" in low) or ("deliver" in low) or ("delivery terms" in low):
         sess["state"] = "await_county"
         return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. " + PAYMENT_NOTE + ".\nWhich *county* are you in?"}
@@ -314,12 +313,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         if not county:
             return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
         eta = delivery_eta_text(county)
-
-        # remember location
         sess["last_county"] = county.title()
         sess["last_eta"] = eta
-
-        # continue to name capture
         sess["state"] = "await_name"
         return {"text": "📍 " + county.title() + " → Typical delivery " + eta + ". " + PAYMENT_NOTE + ".\nGreat! Please share your *full name* for the pro-forma."}
 
@@ -337,7 +332,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         phone = re.sub(r"[^0-9+ ]", "", t)
         if len(re.sub(r"\D", "", phone)) < 9:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
-
         sess["customer_phone"] = phone
         sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
@@ -378,24 +372,17 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     if low in {"yes", "yeah", "yep", "ok", "okay", "sure", "invoice", "profoma", "pro-forma", "quote", "quotation", "recommendation"} and sess.get("state") in {"await_quote", None}:
         product = sess.get("last_product")
         county  = sess.get("last_county")
-
         if not product:
             sess["state"] = "prices"
-            return {"text": (
-                "Great! Tell me the capacity you want (e.g., 204 or 528) so I can prepare your quote.\n\n"
-                + price_page_text(page=1)
-            )}
-
+            return {"text": "Great! Tell me the capacity you want (e.g., 204 or 528) so I can prepare your quote.\n\n" + price_page_text(page=1)}
         if not county:
             sess["state"] = "await_county"
             return {"text": "Which *county* are you in? (e.g., Nairobi, Nakuru, Mombasa)"}
-
-        # We have product+county; proceed to name capture
         sess["state"] = "await_name"
         return {"text": "Perfect. Please share your *full name* for the pro-forma."}
 
     # --------------------------------
-    # EDIT menu & edit states (NEW)
+    # EDIT menu & edit states
     # --------------------------------
     if sess.get("state") == "await_confirm":
         if "edit" in low:
@@ -406,7 +393,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 "2) Phone\n"
                 "3) County\n"
                 "4) Model (capacity)\n\n"
-                "Reply with *1, 2, 3,* or *4*."
+                "Reply with *1, 2, 3,* or *4*.\n"
+                "Or type *CANCEL* to discard and go back to the main menu."
             )}
 
     # --- EDIT menu selection ---
@@ -464,7 +452,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         p = find_by_capacity(cap)
         if not p:
             return {"text": "I couldn't find that capacity. Try 204, 264, 528, 1056, 5280 etc."}
-        # update product
         sess["last_product"] = p
         sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
