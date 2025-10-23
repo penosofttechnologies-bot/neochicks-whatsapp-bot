@@ -87,6 +87,11 @@ def guess_county(text: str) -> str | None:
             return joined
     return None
   
+
+# =========================
+# Flask
+# =========================
+app = Flask(__name__)
 @app.get("/")
 def index():
     return (
@@ -96,10 +101,6 @@ def index():
         "<p>Invoice sample: /invoice/&lt;ORDER_ID&gt;.pdf (after confirmation)</p>"
     ), 200
 
-# =========================
-# Flask
-# =========================
-app = Flask(__name__)
 
 # =========================
 # WhatsApp helpers
