@@ -717,7 +717,7 @@ def testmail():
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 3000)))
 
-@app.before_first_request
+@app.before_request
 def _startup():
     init_db()
 
