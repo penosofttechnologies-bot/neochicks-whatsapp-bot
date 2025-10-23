@@ -45,7 +45,20 @@ SALES_EMAIL      = os.getenv("SALES_EMAIL", SENDGRID_FROM)
 
 ADMIN_TOKEN       = os.getenv("ADMIN_TOKEN", "")
 FOLLOWUP_DELAY_MIN= int(os.getenv("FOLLOWUP_DELAY_MIN", "180"))
-DB_PATH = os.getenv("DB_PATH", "/tmp/neochicks.db")
+def db():
+    path = DB_PATH
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        conn = sqlite3.connect(path)
+    except PermissionError:
+        # fallback to /tmp
+        fallback = "/tmp/neochicks.db"
+        print(f"DB path not writable: {path}. Falling back to {fallback}")
+        os.makedirs("/tmp", exist_ok=True)
+        conn = sqlite3.connect(fallback)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 
 BUSINESS_NAME = "Neochicks Poultry Ltd."
 CALL_LINE     = "0707787884"
