@@ -86,6 +86,15 @@ def guess_county(text: str) -> str | None:
         if joined in COUNTIES:
             return joined
     return None
+  
+@app.get("/")
+def index():
+    return (
+        "<h2>Neochicks WhatsApp Bot</h2>"
+        "<p>Status: <a href='/health'>/health</a></p>"
+        "<p>Webhook: /webhook (Meta will call this)</p>"
+        "<p>Invoice sample: /invoice/&lt;ORDER_ID&gt;.pdf (after confirmation)</p>"
+    ), 200
 
 # =========================
 # Flask
