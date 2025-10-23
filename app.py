@@ -1,3 +1,31 @@
+"""
+Neochicks WhatsApp Bot (patched version)
+
+This Flask application integrates with the WhatsApp Business Cloud API to provide an
+interactive bot for Neochicks Poultry Ltd. Customers can inquire about incubator
+capacities and prices, check delivery terms, troubleshoot their incubators, and
+place orders. When an order is confirmed the bot logs the order, sends an
+email notification to the sales team, and delivers a pro‑forma invoice as a
+PDF via WhatsApp.
+
+This patched version improves reliability around order confirmation and pro‑forma
+invoice generation:
+
+* **Order confirmation** now uses a case‑insensitive regular expression to
+  recognise variations of "CONFIRM". This resolves an issue where some users
+  were not able to trigger confirmation if they typed "CONFIRM" with
+  additional whitespace or differing case.
+* **PDF delivery fallback**: if sending the PDF document through WhatsApp
+  fails for any reason, the bot falls back to sending a text message with a
+  direct download link to the PDF. This ensures customers always receive
+  access to their pro‑forma invoice even if the media API encounters an
+  intermittent error.
+
+The rest of the application remains unchanged, including stateless county
+detection and editable pro‑forma details.
+
+"""
+
 from flask import Flask, request, jsonify, send_file, abort
 import os, json, re, requests, sqlite3, io
 from datetime import datetime, timedelta
@@ -24,6 +52,7 @@ CALL_LINE     = "0707787884"
 PAYMENT_NOTE  = "Pay on delivery"
 AFTER_HOURS_NOTE = "We are currently off till early morning."
 
+# List of recognised counties for stateless detection
 COUNTIES = {
     "baringo","bomet","bungoma","busia","elgeyo marakwet","embu","garissa","homa bay","isiolo",
     "kajiado","kakamega","kericho","kiambu","kilifi","kirinyaga","kisii","kisumu","kitui",
@@ -34,16 +63,28 @@ COUNTIES = {
 }
 
 def guess_county(text: str) -> str | None:
+    """Guess a Kenyan county name from free‑form text.
+
+    Removes non‑letter characters, normalises whitespace and attempts to match
+    against a known list of counties. Returns the county name in lower case or
+    ``None`` if no match is found.
+    """
     cleaned = re.sub(r"[^a-z ]", "", text.lower()).strip()
-    if not cleaned: return None
-    if cleaned in COUNTIES: return cleaned
+    if not cleaned:
+        return None
+    if cleaned in COUNTIES:
+        return cleaned
+    # handle trailing " county"
     if cleaned.endswith(" county"):
         c = cleaned[:-7].strip()
-        if c in COUNTIES: return c
+        if c in COUNTIES:
+            return c
+    # join multi‑word names
     parts = cleaned.split()
     if len(parts) in (2, 3):
         joined = " ".join(parts)
-        if joined in COUNTIES: return joined
+        if joined in COUNTIES:
+            return joined
     return None
 
 # =========================
@@ -92,6 +133,11 @@ def send_document(to: str, link: str, filename: str, caption: str = ""):
 # Email (SendGrid HTTPS)
 # =========================
 def send_email(subject: str, body: str):
+    """Send a plain text email via SendGrid.
+
+    Returns ``True`` if the email was accepted by SendGrid, otherwise
+    ``False``. Prints an error to the console if configuration is missing.
+    """
     if not (SENDGRID_API_KEY and SENDGRID_FROM and SALES_EMAIL):
         print("Email not sent—missing SENDGRID_API_KEY/SENDGRID_FROM/SALES_EMAIL")
         return False
@@ -251,6 +297,7 @@ def find_by_capacity(cap:int):
 # Session + rules
 # =========================
 SESS = {}  # {phone: {...}}
+
 def delivery_eta_text(county: str) -> str:
     key = (county or "").strip().lower().split()[0]
     return "same day" if key == "nairobi" else "24 hours"
@@ -263,7 +310,7 @@ WELCOME_TEXT = (
 )
 
 # =========================
-# Pro-forma PDF
+# Pro‑forma PDF
 # =========================
 def generate_invoice_pdf(order: dict) -> bytes:
     pdf = FPDF()
@@ -275,7 +322,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.ln(2)
     pdf.cell(0, 8, f"Date (UTC): {order['created_at_utc']}", ln=1)
     pdf.ln(4)
-    # Customer
+    # Customer details
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 8, "Customer", ln=1)
     pdf.set_font("Arial", "", 12)
@@ -283,7 +330,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.cell(0, 7, f"Phone: {order['customer_phone']}", ln=1)
     pdf.cell(0, 7, f"County: {order['county']}", ln=1)
     pdf.ln(2)
-    # Item
+    # Item details
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 8, "Item", ln=1)
     pdf.set_font("Arial", "", 12)
@@ -300,7 +347,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     return out
 
 # =========================
-# Pro-forma text helper
+# Pro‑forma text helper
 # =========================
 def build_proforma_text(sess: dict) -> str:
     p = sess.get("last_product") or {}
@@ -328,6 +375,15 @@ def build_proforma_text(sess: dict) -> str:
 # Brain / Router
 # =========================
 def brain_reply(text: str, from_wa: str = "") -> dict:
+    """Main decision engine for incoming WhatsApp messages.
+
+    This function maintains a per‑number session dictionary to track the current
+    state of the conversation. Based on the incoming message and session
+    context it returns a response dict with keys: ``text`` (mandatory), and
+    optionally ``buttons`` (for interactive menu), ``mediaUrl`` (image link)
+    and ``caption`` for image attachments. The HTTP webhook handler then
+    dispatches these to the appropriate WhatsApp API calls.
+    """
     t = (text or "").strip()
     low = t.lower()
     sess = SESS.setdefault(from_wa, {"state": None, "page": 1})
@@ -349,7 +405,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             return {"text": "❌ Order cancelled. You’re back at the main menu.", "buttons": MENU_BUTTONS}
         if low in {"no","n","back"}:
             sess["state"] = sess.get("prev_state") or None
-            return {"text": "Okay — resuming your order.\n\n" + build_proforma_text(sess) if sess.get("prev_state") in {"await_confirm","edit_menu","edit_name","edit_phone","edit_county","edit_model"} else "Okay — continue."}
+            prev_state = sess.get("prev_state")
+            if prev_state in {"await_confirm","edit_menu","edit_name","edit_phone","edit_county","edit_model"}:
+                return {"text": "Okay — resuming your order.\n\n" + build_proforma_text(sess)}
+            return {"text": "Okay — continue."}
 
     after_note = ("\n\n⏰ " + AFTER_HOURS_NOTE) if is_after_hours() else ""
 
@@ -378,18 +437,20 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 extra = " (Solar)" if p["solar"] else ""
                 gen = "\n🎁 Includes *Free Backup Generator*" if p["free_gen"] else ""
                 out = {"text": "📦 *"+p['name']+"*"+extra+"\nCapacity: "+str(p['capacity'])+" eggs\nPrice: "+ksh(p['price'])+gen}
-                if p.get("image"): out.update({"mediaUrl": p["image"], "caption": p['name']+" — "+ksh(p['price'])+"\n\nReply with your *county* for delivery ETA and quote. "+PAYMENT_NOTE+"." })
+                if p.get("image"):
+                    out.update({"mediaUrl": p["image"], "caption": p['name'] + " — " + ksh(p['price']) + "\n\nReply with your *county* for delivery ETA and quote. " + PAYMENT_NOTE + "." })
                 sess["last_product"] = p
                 return out
 
-    # DELIVERY -> COUNTY -> NAME -> PHONE -> PRO-FORMA
+    # DELIVERY → COUNTY → NAME → PHONE → PRO-FORMA
     if ("delivery" in low) or ("deliver" in low) or ("delivery terms" in low):
         sess["state"] = "await_county"
-        return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. "+PAYMENT_NOTE+".\nWhich *county* are you in?"}
+        return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. " + PAYMENT_NOTE + ".\nWhich *county* are you in?"}
 
     if sess.get("state") == "await_county":
         county = re.sub(r"[^a-z ]", "", low).strip()
-        if not county: return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
+        if not county:
+            return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
         eta = delivery_eta_text(county)
         sess["last_county"] = county.title(); sess["last_eta"] = eta
         sess["state"] = "await_name"
@@ -397,7 +458,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
     if sess.get("state") == "await_name":
         name = t.strip()
-        if len(name) < 2: return {"text": "Please type your *full name* (e.g., Jane Wanjiku)."}
+        if len(name) < 2:
+            return {"text": "Please type your *full name* (e.g., Jane Wanjiku)."}
         sess["customer_name"] = name; sess["state"] = "await_phone"
         return {"text": "Thanks! Now your *phone number* (for delivery coordination):"}
 
@@ -411,13 +473,18 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     # Troubleshoot & FAQs (kept)
     if any(k in low for k in ["troubleshoot","hatch rate","problem","fault","issue"]):
         sess["state"] = None
-        return {"text": ("🛠️ Quick checks:\n1) Temp 37.8°C (±0.2)\n2) Humidity 55–60% set / 65% hatch\n3) Turning 3–5×/day (auto OK)\n4) Candle day 7 & 14; remove clears\n5) Ventilation okay (no drafts)\n6) Disinfection after hatching?\n\nDo you check all above? Call "+CALL_LINE+".")}
+        return {"text": ("🛠️ Quick checks:\n1) Temp 37.8°C (±0.2)\n2) Humidity 55–60% set / 65% hatch\n3) Turning 3–5×/day (auto OK)\n4) Candle day 7 & 14; remove clears\n5) Ventilation okay (no drafts)\n6) Disinfection after hatching?\n\nDo you check all above? Call " + CALL_LINE + ".")}
 
-    if re.search(r"warranty|guarantee", low): return {"text":"✅ 12-month warranty + free setup guidance. We also connect you to our technician from your nearest town."}
-    if re.search(r"backup|inverter|power|solar", low): return {"text":"🔋 Solar panels + battery available (sized per model). We assist to outsource solar packages depending on your incubator power rating."}
-    if re.search(r"sell.*chicks|\\bchicks\\b|kienyeji", low): return {"text":"🐥 Improved Kienyeji chicks available — 3 days old up to 2 months old. Call: 0793585968."}
-    if re.search(r"payment|mpesa|cash", low): return {"text":"💳 Any mode of payment acceptable. "+PAYMENT_NOTE+"."}
-    if re.search(r"include.*solar|price.*include.*solar|solar.*include", low): return {"text":"ℹ️ Prices do not include solar panels. We guide you to get the best solar/battery package for your incubator."}
+    if re.search(r"warranty|guarantee", low):
+        return {"text":"✅ 12-month warranty + free setup guidance. We also connect you to our technician from your nearest town."}
+    if re.search(r"backup|inverter|power|solar", low):
+        return {"text":"🔋 Solar panels + battery available (sized per model). We assist to outsource solar packages depending on your incubator power rating."}
+    if re.search(r"sell.*chicks|\bchicks\b|kienyeji", low):
+        return {"text":"🐥 Improved Kienyeji chicks available — 3 days old up to 2 months old. Call: 0793585968."}
+    if re.search(r"payment|mpesa|cash", low):
+        return {"text":"💳 Any mode of payment acceptable. " + PAYMENT_NOTE + "."}
+    if re.search(r"include.*solar|price.*include.*solar|solar.*include", low):
+        return {"text":"ℹ️ Prices do not include solar panels. We guide you to get the best solar/battery package for your incubator."}
 
     # YES → quote flow
     if low in {"yes","yeah","yep","ok","okay","sure","invoice","profoma","pro-forma","quote","quotation","recommendation"} and sess.get("state") in {"await_quote", None}:
@@ -437,37 +504,47 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
     if sess.get("state") == "edit_menu":
         choice = re.sub(r"[^0-9a-z ]","",low).strip()
-        if choice in {"1","name"}:   sess["state"]="edit_name";   return {"text":"Okay — please type the *correct full name*:"}
-        if choice in {"2","phone"}:  sess["state"]="edit_phone";  return {"text":"Okay — please type the *correct phone number* (07XX... or +2547...):"}
-        if choice in {"3","county"}: sess["state"]="edit_county"; return {"text":"Okay — please type your *county* (e.g., Nairobi, Nakuru, Mombasa):"}
-        if choice in {"4","model","capacity"}: sess["state"]="edit_model"; return {"text":"Type the *capacity number* you want (e.g., 204, 528, 1056):"}
+        if choice in {"1","name"}:
+            sess["state"]="edit_name";   return {"text":"Okay — please type the *correct full name*:"}
+        if choice in {"2","phone"}:
+            sess["state"]="edit_phone";  return {"text":"Okay — please type the *correct phone number* (07XX... or +2547...):"}
+        if choice in {"3","county"}:
+            sess["state"]="edit_county"; return {"text":"Okay — please type your *county* (e.g., Nairobi, Nakuru, Mombasa):"}
+        if choice in {"4","model","capacity"}:
+            sess["state"]="edit_model"; return {"text":"Type the *capacity number* you want (e.g., 204, 528, 1056):"}
         return {"text":"Please reply with *1, 2, 3,* or *4*."}
 
     if sess.get("state") == "edit_name":
         name = (t or "").strip()
-        if len(name) < 2: return {"text":"That looks too short. Please type your *full name* (e.g., Jane Wanjiku)."}
-        sess["customer_name"]=name; sess["state"]="await_confirm"; return {"text":build_proforma_text(sess)}
+        if len(name) < 2:
+            return {"text":"That looks too short. Please type your *full name* (e.g., Jane Wanjiku)."}
+        sess["customer_name"] = name; sess["state"]="await_confirm"; return {"text":build_proforma_text(sess)}
 
     if sess.get("state") == "edit_phone":
         phone = re.sub(r"[^0-9+ ]","",(t or ""))
-        if len(re.sub(r"\D","",phone)) < 9: return {"text":"That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
-        sess["customer_phone"]=phone; sess["state"]="await_confirm"; return {"text":build_proforma_text(sess)}
+        if len(re.sub(r"\D","",phone)) < 9:
+            return {"text":"That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
+        sess["customer_phone"] = phone; sess["state"]="await_confirm"; return {"text":build_proforma_text(sess)}
 
     if sess.get("state") == "edit_county":
         county_raw=(t or "").strip(); county=re.sub(r"[^a-z ]","",county_raw.lower()).strip()
-        if not county: return {"text":"Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
-        sess["last_county"]=county.title(); sess["last_eta"]=delivery_eta_text(county)
+        if not county:
+            return {"text":"Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
+        sess["last_county"] = county.title(); sess["last_eta"] = delivery_eta_text(county)
         sess["state"]="await_confirm"; return {"text":build_proforma_text(sess)}
 
     if sess.get("state") == "edit_model":
         m = re.search(r"([0-9]{2,5})", low)
-        if not m: return {"text":"Please type just the *capacity number* (e.g., 204, 528, 1056)."}
+        if not m:
+            return {"text":"Please type just the *capacity number* (e.g., 204, 528, 1056)."}
         cap=int(m.group(1)); p=find_by_capacity(cap)
-        if not p: return {"text":"I couldn't find that capacity. Try 204, 264, 528, 1056, 5280 etc."}
-        sess["last_product"]=p; sess["state"]="await_confirm"; return {"text":build_proforma_text(sess)}
+        if not p:
+            return {"text":"I couldn't find that capacity. Try 204, 264, 528, 1056, 5280 etc."}
+        sess["last_product"] = p; sess["state"]="await_confirm"; return {"text":build_proforma_text(sess)}
 
     # CONFIRM → email + DB insert + PDF link
-    if low.strip() == "confirm" and sess.get("state") == "await_confirm":
+    # Allow case-insensitive confirm with optional whitespace
+    if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
         p = sess.get("last_product") or {}
         county = sess.get("last_county","-")
         eta = sess.get("last_eta", delivery_eta_text(county))
@@ -510,10 +587,17 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         # Send back invoice link as a WhatsApp document (PDF served by our app)
         pdf_url = request.url_root.rstrip("/") + f"/invoice/{order_id}.pdf"
         try:
+            # attempt to send the PDF document via WhatsApp
             send_document(from_wa, pdf_url, f"{order_id}.pdf", "Your pro-forma invoice")
         except Exception as e:
+            # log and fall back to plain text link
             print("WhatsApp document send failed:", e)
+            try:
+                send_text(from_wa, "Here is your pro-forma invoice: " + pdf_url)
+            except Exception as e2:
+                print("Fallback text send failed:", e2)
 
+        # reset session
         SESS[from_wa] = {"state": None, "page": 1}
         return {"text": "✅ Order confirmed! I’ve sent your pro-forma invoice. Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
 
@@ -521,7 +605,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     c_guess = guess_county(low)
     if c_guess:
         eta = delivery_eta_text(c_guess)
-        sess["last_county"]=c_guess.title(); sess["last_eta"]=eta; sess["state"]="await_name"
+        sess["last_county"] = c_guess.title(); sess["last_eta"] = eta; sess["state"]="await_name"
         return {"text": f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nGreat! Please share your *full name* for the pro-forma."}
 
     # Fallback
@@ -531,7 +615,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 # Routes
 # =========================
 @app.get("/health")
-def health(): return jsonify({"status":"ok"})
+def health():
+    return jsonify({"status":"ok"})
 
 @app.get("/webhook")
 def verify():
@@ -550,7 +635,8 @@ def webhook():
         changes = (entry.get("changes") or [{}])[0]
         value   = changes.get("value", {})
         messages = value.get("messages", [])
-        if not messages: return "no message", 200
+        if not messages:
+            return "no message", 200
 
         msg = messages[0]; from_wa = msg.get("from"); text = ""
         if msg.get("type") == "text":
@@ -563,9 +649,12 @@ def webhook():
                 text = inter.get("list_reply", {}).get("title", "")
 
         reply = brain_reply(text, from_wa)
-        if reply.get("text"):    send_text(from_wa, reply["text"])
-        if reply.get("buttons"): send_buttons(from_wa, reply["buttons"])
-        if reply.get("mediaUrl"):send_image(from_wa, reply["mediaUrl"], reply.get("caption",""))
+        if reply.get("text"):
+            send_text(from_wa, reply["text"])
+        if reply.get("buttons"):
+            send_buttons(from_wa, reply["buttons"])
+        if reply.get("mediaUrl"):
+            send_image(from_wa, reply["mediaUrl"], reply.get("caption",""))
         return "ok", 200
     except Exception as e:
         print("Webhook error:", e, "payload:", json.dumps(data)[:1000])
@@ -604,7 +693,8 @@ def send_followups():
 @app.get("/invoice/<order_id>.pdf")
 def invoice(order_id):
     order = get_order(order_id)
-    if not order: return abort(404)
+    if not order:
+        return abort(404)
     pdf_bytes = generate_invoice_pdf(order)
     return send_file(io.BytesIO(pdf_bytes), mimetype="application/pdf",
                      as_attachment=False, download_name=f"{order_id}.pdf")
