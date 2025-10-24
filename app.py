@@ -475,7 +475,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
     # CONFIRM → email + in-memory save + PDF link (no DB)
    # ... inside brain_reply(), in the CONFIRM branch:
-if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
+if SESS.get(from_wa, {}).get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
     p = sess.get("last_product") or {}
     county = sess.get("last_county","-")
     eta = sess.get("last_eta", delivery_eta_text(county))
