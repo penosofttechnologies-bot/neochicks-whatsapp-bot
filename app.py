@@ -47,7 +47,6 @@ ADMIN_TOKEN       = os.getenv("ADMIN_TOKEN", "")
 FOLLOWUP_DELAY_MIN= int(os.getenv("FOLLOWUP_DELAY_MIN", "180"))
 DB_PATH = os.getenv("DB_PATH", "/tmp/neochicks.db")
 
-
 BUSINESS_NAME = "Neochicks Poultry Ltd."
 CALL_LINE     = "0707787884"
 PAYMENT_NOTE  = "Pay on delivery"
