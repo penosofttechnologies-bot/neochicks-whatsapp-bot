@@ -523,7 +523,7 @@ if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t
     _cleanup_invoices()
 
     # WhatsApp: send document link (with fallback to text)
-   @app.post("/webhook")
+@app.post("/webhook")
 def webhook():
     data = request.get_json()
     from_wa = data["from"]
