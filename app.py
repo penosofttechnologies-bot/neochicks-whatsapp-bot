@@ -15,6 +15,9 @@ import os, json, re, requests, io
 from datetime import datetime, timedelta
 from fpdf import FPDF  # pip install fpdf==1.7.2
 
+import logging
+app.logger.setLevel(logging.INFO)
+
 # =========================
 # Config (env variables)
 # =========================
@@ -468,61 +471,72 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["last_product"] = p; sess["state"]="await_confirm"; return {"text":build_proforma_text(sess)}
 
     # CONFIRM → email + in-memory save + PDF link (no DB)
-    if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
-        p = sess.get("last_product") or {}
-        county = sess.get("last_county","-")
-        eta = sess.get("last_eta", delivery_eta_text(county))
-        order_id = new_order_id()
-        created_at = datetime.utcnow()
+   # ... inside brain_reply(), in the CONFIRM branch:
+if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
+    p = sess.get("last_product") or {}
+    county = sess.get("last_county","-")
+    eta = sess.get("last_eta", delivery_eta_text(county))
+    order_id = new_order_id()
+    created_at = datetime.utcnow()
 
-        order = {
-            "id": order_id,
-            "wa_from": from_wa,
-            "customer_name": sess.get("customer_name",""),
-            "customer_phone": sess.get("customer_phone",""),
-            "county": county,
-            "model": p.get("name",""),
-            "capacity": int(p.get("capacity") or 0),
-            "price": int(p.get("price") or 0),
-            "eta": eta,
-            "created_at_utc": created_at.isoformat()+"Z",
-        }
+    order = {
+        "id": order_id,
+        "wa_from": from_wa,
+        "customer_name": sess.get("customer_name",""),
+        "customer_phone": sess.get("customer_phone",""),
+        "county": county,
+        "model": p.get("name",""),
+        "capacity": int(p.get("capacity") or 0),
+        "price": int(p.get("price") or 0),
+        "eta": eta,
+        "created_at_utc": created_at.isoformat()+"Z",
+    }
 
-        # Email notify (best effort)
-        subject = f"ORDER CONFIRMED — {p.get('name','Model')} for {order['customer_name']} ({order_id})"
-        body = (
-            f"New order confirmation from WhatsApp bot\n\n"
-            f"Order ID: {order_id}\n"
-            f"Customer Name: {order['customer_name']}\n"
-            f"Customer Phone: {order['customer_phone']}\n"
-            f"County: {county}\n"
-            f"Model: {p.get('name','')}\n"
-            f"Capacity: {p.get('capacity','')}\n"
-            f"Price: {ksh(p.get('price',0))}\n"
-            f"Delivery ETA: {eta}\n"
-            f"Payment: {PAYMENT_NOTE}\n"
-            f"Timestamp: {created_at.isoformat()}Z\n"
-        )
-        send_email(subject, body)
+    # Email notify (best effort)
+    subject = f"ORDER CONFIRMED — {p.get('name','Model')} for {order['customer_name']} ({order_id})"
+    body = (
+        f"New order confirmation from WhatsApp bot\n\n"
+        f"Order ID: {order_id}\n"
+        f"Customer Name: {order['customer_name']}\n"
+        f"Customer Phone: {order['customer_phone']}\n"
+        f"County: {county}\n"
+        f"Model: {p.get('name','')}\n"
+        f"Capacity: {p.get('capacity','')}\n"
+        f"Price: {ksh(p.get('price',0))}\n"
+        f"Delivery ETA: {eta}\n"
+        f"Payment: {PAYMENT_NOTE}\n"
+        f"Timestamp: {created_at.isoformat()}Z\n"
+    )
+    send_email(subject, body)
 
-        # Save in-memory (for PDF route) and clean up old ones
-        INVOICES[order_id] = order
-        _cleanup_invoices()
+    # Save in-memory AND write a durable copy to /tmp
+    INVOICES[order_id] = order
+    try:
+        pdf_bytes = generate_invoice_pdf(order)
+        pdf_path = f"/tmp/{order_id}.pdf"
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_bytes)
+        print(f"[invoice] wrote {pdf_path} (size={len(pdf_bytes)} bytes)")
+    except Exception as e:
+        print(f"[invoice] PDF write failed for {order_id}:", e)
 
-        # WhatsApp: send document link (with fallback to text)
-        pdf_url = request.url_root.rstrip("/") + f"/invoice/{order_id}.pdf"
+    _cleanup_invoices()
+
+    # WhatsApp: send document link (with fallback to text)
+    pdf_url = request.url_root.rstrip("/") + f"/invoice/{order_id}.pdf"
+    try:
+        send_document(from_wa, pdf_url, f"{order_id}.pdf", "Your pro-forma invoice")
+    except Exception as e:
+        print("WhatsApp document send failed:", e)
         try:
-            send_document(from_wa, pdf_url, f"{order_id}.pdf", "Your pro-forma invoice")
-        except Exception as e:
-            print("WhatsApp document send failed:", e)
-            try:
-                send_text(from_wa, "Here is your pro-forma invoice: " + pdf_url)
-            except Exception as e2:
-                print("Fallback text send failed:", e2)
+            send_text(from_wa, "Here is your pro-forma invoice: " + pdf_url)
+        except Exception as e2:
+            print("Fallback text send failed:", e2)
 
-        # reset session
-        SESS[from_wa] = {"state": None, "page": 1}
-        return {"text": "✅ Order confirmed! I’ve sent your pro-forma invoice. Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
+    # reset session
+    SESS[from_wa] = {"state": None, "page": 1}
+    return {"text": "✅ Order confirmed! I’ve sent your pro-forma invoice. Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
+
 
     # County guess (stateless)
     c_guess = guess_county(low)
@@ -586,12 +600,26 @@ def webhook():
 # --- Serve the PDF invoice (from memory) ---
 @app.get("/invoice/<order_id>.pdf")
 def invoice(order_id):
+    # 1) Serve durable file if present
+    tmp_path = f"/tmp/{order_id}.pdf"
+    try:
+        if os.path.exists(tmp_path):
+            print(f"[invoice] serving cached file {tmp_path}")
+            return send_file(tmp_path, mimetype="application/pdf",
+                             as_attachment=False, download_name=f"{order_id}.pdf")
+    except Exception as e:
+        print(f"[invoice] error reading {tmp_path}:", e)
+
+    # 2) Fallback: re-render from in-memory order
     order = INVOICES.get(order_id)
     if not order:
-        return abort(404)
+        print(f"[invoice] not found: {order_id}")
+        abort(404)
+
     pdf_bytes = generate_invoice_pdf(order)
     return send_file(io.BytesIO(pdf_bytes), mimetype="application/pdf",
                      as_attachment=False, download_name=f"{order_id}.pdf")
+
 
 @app.get("/testmail")
 def testmail():
