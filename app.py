@@ -1,33 +1,17 @@
 """
-Neochicks WhatsApp Bot (patched version)
+Neochicks WhatsApp Bot (DB-free patched version)
 
-This Flask application integrates with the WhatsApp Business Cloud API to provide an
-interactive bot for Neochicks Poultry Ltd. Customers can inquire about incubator
-capacities and prices, check delivery terms, troubleshoot their incubators, and
-place orders. When an order is confirmed the bot logs the order, sends an
-email notification to the sales team, and delivers a pro‑forma invoice as a
-PDF via WhatsApp.
+- Removes ALL database reads/writes.
+- Keeps email + PDF generation + WhatsApp delivery.
+- Stores confirmed orders in a simple in-memory dict (INVOICES) so
+  /invoice/<ORDER_ID>.pdf can render on demand.
 
-This patched version improves reliability around order confirmation and pro‑forma
-invoice generation:
-
-* **Order confirmation** now uses a case‑insensitive regular expression to
-  recognise variations of "CONFIRM". This resolves an issue where some users
-  were not able to trigger confirmation if they typed "CONFIRM" with
-  additional whitespace or differing case.
-* **PDF delivery fallback**: if sending the PDF document through WhatsApp
-  fails for any reason, the bot falls back to sending a text message with a
-  direct download link to the PDF. This ensures customers always receive
-  access to their pro‑forma invoice even if the media API encounters an
-  intermittent error.
-
-The rest of the application remains unchanged, including stateless county
-detection and editable pro‑forma details.
-
+NOTE: In-memory storage clears on deploy/restart. This is intended as a
+DB-free interim. Keep WEB_CONCURRENCY=1 on Render for consistent behavior.
 """
 
 from flask import Flask, request, jsonify, send_file, abort
-import os, json, re, requests, sqlite3, io
+import os, json, re, requests, io
 from datetime import datetime, timedelta
 from fpdf import FPDF  # pip install fpdf==1.7.2
 
@@ -43,16 +27,38 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
 SENDGRID_FROM    = os.getenv("SENDGRID_FROM", "")
 SALES_EMAIL      = os.getenv("SALES_EMAIL", SENDGRID_FROM)
 
-ADMIN_TOKEN       = os.getenv("ADMIN_TOKEN", "")
-FOLLOWUP_DELAY_MIN= int(os.getenv("FOLLOWUP_DELAY_MIN", "180"))
-DB_PATH = os.getenv("DB_PATH", "/tmp/neochicks.db")
+ADMIN_TOKEN       = os.getenv("ADMIN_TOKEN", "")  # kept for future, unused now
+FOLLOWUP_DELAY_MIN= int(os.getenv("FOLLOWUP_DELAY_MIN", "180"))  # unused without DB
 
 BUSINESS_NAME = "Neochicks Poultry Ltd."
 CALL_LINE     = "0707787884"
 PAYMENT_NOTE  = "Pay on delivery"
 AFTER_HOURS_NOTE = "We are currently off till early morning."
 
-# List of recognised counties for stateless detection
+# =========================
+# Temporary, in-memory store
+# =========================
+# Holds the minimal fields needed to re-render an invoice PDF by ID.
+INVOICES: dict[str, dict] = {}
+INVOICE_TTL_MIN = int(os.getenv("INVOICE_TTL_MIN", "1440"))  # 24h default
+
+def _cleanup_invoices(now: datetime | None = None):
+    """Simple time-based cleanup to prevent unbounded growth."""
+    now = now or datetime.utcnow()
+    drop_ids = []
+    for oid, o in INVOICES.items():
+        try:
+            created = datetime.fromisoformat(o.get("created_at_utc", "").replace("Z", ""))
+        except Exception:
+            created = now
+        if (now - created) > timedelta(minutes=INVOICE_TTL_MIN):
+            drop_ids.append(oid)
+    for oid in drop_ids:
+        INVOICES.pop(oid, None)
+
+# =========================
+# Counties & helpers
+# =========================
 COUNTIES = {
     "baringo","bomet","bungoma","busia","elgeyo marakwet","embu","garissa","homa bay","isiolo",
     "kajiado","kakamega","kericho","kiambu","kilifi","kirinyaga","kisii","kisumu","kitui",
@@ -63,44 +69,47 @@ COUNTIES = {
 }
 
 def guess_county(text: str) -> str | None:
-    """Guess a Kenyan county name from free‑form text.
-
-    Removes non‑letter characters, normalises whitespace and attempts to match
-    against a known list of counties. Returns the county name in lower case or
-    ``None`` if no match is found.
-    """
     cleaned = re.sub(r"[^a-z ]", "", text.lower()).strip()
     if not cleaned:
         return None
     if cleaned in COUNTIES:
         return cleaned
-    # handle trailing " county"
     if cleaned.endswith(" county"):
         c = cleaned[:-7].strip()
         if c in COUNTIES:
             return c
-    # join multi‑word names
     parts = cleaned.split()
     if len(parts) in (2, 3):
         joined = " ".join(parts)
         if joined in COUNTIES:
             return joined
     return None
-  
+
+def ksh(n:int) -> str:
+    return f"KSh {n:,.0f}"
+
+def is_after_hours():
+    # EAT = UTC+3
+    eat_hour = (datetime.utcnow().hour + 3) % 24
+    return not (6 <= eat_hour < 23)
+
+def delivery_eta_text(county: str) -> str:
+    key = (county or "").strip().lower().split()[0]
+    return "same day" if key == "nairobi" else "24 hours"
 
 # =========================
 # Flask
 # =========================
 app = Flask(__name__)
+
 @app.get("/")
 def index():
     return (
-        "<h2>Neochicks WhatsApp Bot</h2>"
+        "<h2>Neochicks WhatsApp Bot (DB-free)</h2>"
         "<p>Status: <a href='/health'>/health</a></p>"
         "<p>Webhook: /webhook (Meta will call this)</p>"
         "<p>Invoice sample: /invoice/&lt;ORDER_ID&gt;.pdf (after confirmation)</p>"
     ), 200
-
 
 # =========================
 # WhatsApp helpers
@@ -143,11 +152,6 @@ def send_document(to: str, link: str, filename: str, caption: str = ""):
 # Email (SendGrid HTTPS)
 # =========================
 def send_email(subject: str, body: str):
-    """Send a plain text email via SendGrid.
-
-    Returns ``True`` if the email was accepted by SendGrid, otherwise
-    ``False``. Prints an error to the console if configuration is missing.
-    """
     if not (SENDGRID_API_KEY and SENDGRID_FROM and SALES_EMAIL):
         print("Email not sent—missing SENDGRID_API_KEY/SENDGRID_FROM/SALES_EMAIL")
         return False
@@ -169,84 +173,8 @@ def send_email(subject: str, body: str):
         return False
 
 # =========================
-# DB (SQLite) — for order log & followups
-# =========================
-def db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    with db() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-              id TEXT PRIMARY KEY,
-              wa_from TEXT,
-              customer_name TEXT,
-              customer_phone TEXT,
-              county TEXT,
-              model TEXT,
-              capacity INTEGER,
-              price INTEGER,
-              eta TEXT,
-              created_at_utc TEXT,
-              followup_due_utc TEXT,
-              followup_sent INTEGER DEFAULT 0
-            )
-        """)
-        conn.commit()
-
-def new_order_id():
-    ts = datetime.utcnow().strftime("%y%m%d%H%M%S")
-    return f"NEO-{ts}"
-
-def insert_order(row: dict):
-    with db() as conn:
-        conn.execute("""
-            INSERT INTO orders (id, wa_from, customer_name, customer_phone, county, model, capacity, price, eta,
-                                created_at_utc, followup_due_utc, followup_sent)
-            VALUES (:id, :wa_from, :customer_name, :customer_phone, :county, :model, :capacity, :price, :eta,
-                    :created_at_utc, :followup_due_utc, 0)
-        """, row)
-        conn.commit()
-
-def due_followups(now_iso: str):
-    with db() as conn:
-        cur = conn.execute("""
-            SELECT * FROM orders
-            WHERE followup_sent=0 AND followup_due_utc <= ?
-            ORDER BY followup_due_utc ASC
-        """, (now_iso,))
-        return [dict(r) for r in cur.fetchall()]
-
-def mark_followup_sent(order_id: str):
-    with db() as conn:
-        conn.execute("UPDATE orders SET followup_sent=1 WHERE id=?", (order_id,))
-        conn.commit()
-
-def get_recent_orders(limit=50):
-    with db() as conn:
-        cur = conn.execute("SELECT * FROM orders ORDER BY created_at_utc DESC LIMIT ?", (limit,))
-        return [dict(r) for r in cur.fetchall()]
-
-def get_order(order_id: str):
-    with db() as conn:
-        cur = conn.execute("SELECT * FROM orders WHERE id=?", (order_id,))
-        r = cur.fetchone()
-        return dict(r) if r else None
-
-# =========================
 # Catalog & utilities
 # =========================
-def ksh(n:int) -> str:
-    return f"KSh {n:,.0f}"
-
-def is_after_hours():
-    # EAT = UTC+3
-    eat_hour = (datetime.utcnow().hour + 3) % 24
-    return not (6 <= eat_hour < 23)
-
 MENU_BUTTONS = [
     "Prices/Capacities 💰📦",
     "Delivery Terms 🚚",
@@ -308,10 +236,6 @@ def find_by_capacity(cap:int):
 # =========================
 SESS = {}  # {phone: {...}}
 
-def delivery_eta_text(county: str) -> str:
-    key = (county or "").strip().lower().split()[0]
-    return "same day" if key == "nairobi" else "24 hours"
-
 WELCOME_TEXT = (
     "🐣 Karibu *Neochicks Ltd.*\n"
     "The leading incubators supplier in Kenya and East Africa.\n"
@@ -320,7 +244,7 @@ WELCOME_TEXT = (
 )
 
 # =========================
-# Pro‑forma PDF
+# Pro-forma PDF
 # =========================
 def generate_invoice_pdf(order: dict) -> bytes:
     pdf = FPDF()
@@ -357,7 +281,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     return out
 
 # =========================
-# Pro‑forma text helper
+# Pro-forma text helper
 # =========================
 def build_proforma_text(sess: dict) -> str:
     p = sess.get("last_product") or {}
@@ -384,27 +308,19 @@ def build_proforma_text(sess: dict) -> str:
 # =========================
 # Brain / Router
 # =========================
-def brain_reply(text: str, from_wa: str = "") -> dict:
-    """Main decision engine for incoming WhatsApp messages.
+def new_order_id():
+    ts = datetime.utcnow().strftime("%y%m%d%H%M%S")
+    return f"NEO-{ts}"
 
-    This function maintains a per‑number session dictionary to track the current
-    state of the conversation. Based on the incoming message and session
-    context it returns a response dict with keys: ``text`` (mandatory), and
-    optionally ``buttons`` (for interactive menu), ``mediaUrl`` (image link)
-    and ``caption`` for image attachments. The HTTP webhook handler then
-    dispatches these to the appropriate WhatsApp API calls.
-    """
+def brain_reply(text: str, from_wa: str = "") -> dict:
     t = (text or "").strip()
     low = t.lower()
     sess = SESS.setdefault(from_wa, {"state": None, "page": 1})
 
-    # Cancel: confirm first (NEW)
+    # Cancel: confirm first
     if any(k in low for k in ["cancel","stop","abort","start over","back to menu","main menu","menu"]) and \
        sess.get("state") in {"await_name","await_phone","await_confirm","edit_menu","edit_name","edit_phone","edit_county","edit_model","cancel_confirm"}:
-        if sess.get("state") == "cancel_confirm":
-            # fall through to handler below
-            pass
-        else:
+        if sess.get("state") != "cancel_confirm":
             sess["prev_state"] = sess.get("state")
             sess["state"] = "cancel_confirm"
             return {"text": "Are you sure you want to cancel this order? Reply *YES* to confirm, or *NO* to continue."}
@@ -480,11 +396,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["customer_phone"] = phone; sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
-    # Troubleshoot & FAQs (kept)
+    # FAQs kept
     if any(k in low for k in ["troubleshoot","hatch rate","problem","fault","issue"]):
         sess["state"] = None
         return {"text": ("🛠️ Quick checks:\n1) Temp 37.8°C (±0.2)\n2) Humidity 55–60% set / 65% hatch\n3) Turning 3–5×/day (auto OK)\n4) Candle day 7 & 14; remove clears\n5) Ventilation okay (no drafts)\n6) Disinfection after hatching?\n\nDo you check all above? Call " + CALL_LINE + ".")}
-
     if re.search(r"warranty|guarantee", low):
         return {"text":"✅ 12-month warranty + free setup guidance. We also connect you to our technician from your nearest town."}
     if re.search(r"backup|inverter|power|solar", low):
@@ -552,18 +467,15 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             return {"text":"I couldn't find that capacity. Try 204, 264, 528, 1056, 5280 etc."}
         sess["last_product"] = p; sess["state"]="await_confirm"; return {"text":build_proforma_text(sess)}
 
-    # CONFIRM → email + DB insert + PDF link
-    # Allow case-insensitive confirm with optional whitespace
+    # CONFIRM → email + in-memory save + PDF link (no DB)
     if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
         p = sess.get("last_product") or {}
         county = sess.get("last_county","-")
         eta = sess.get("last_eta", delivery_eta_text(county))
         order_id = new_order_id()
         created_at = datetime.utcnow()
-        follow_due = created_at + timedelta(minutes=FOLLOWUP_DELAY_MIN)
 
-        # DB log
-        insert_order({
+        order = {
             "id": order_id,
             "wa_from": from_wa,
             "customer_name": sess.get("customer_name",""),
@@ -574,16 +486,15 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             "price": int(p.get("price") or 0),
             "eta": eta,
             "created_at_utc": created_at.isoformat()+"Z",
-            "followup_due_utc": follow_due.isoformat()+"Z",
-        })
+        }
 
-        # Email notify
-        subject = f"ORDER CONFIRMED — {p.get('name','Model')} for {sess.get('customer_name','Customer')} ({order_id})"
+        # Email notify (best effort)
+        subject = f"ORDER CONFIRMED — {p.get('name','Model')} for {order['customer_name']} ({order_id})"
         body = (
             f"New order confirmation from WhatsApp bot\n\n"
             f"Order ID: {order_id}\n"
-            f"Customer Name: {sess.get('customer_name','')}\n"
-            f"Customer Phone: {sess.get('customer_phone','')}\n"
+            f"Customer Name: {order['customer_name']}\n"
+            f"Customer Phone: {order['customer_phone']}\n"
             f"County: {county}\n"
             f"Model: {p.get('name','')}\n"
             f"Capacity: {p.get('capacity','')}\n"
@@ -594,13 +505,15 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         )
         send_email(subject, body)
 
-        # Send back invoice link as a WhatsApp document (PDF served by our app)
+        # Save in-memory (for PDF route) and clean up old ones
+        INVOICES[order_id] = order
+        _cleanup_invoices()
+
+        # WhatsApp: send document link (with fallback to text)
         pdf_url = request.url_root.rstrip("/") + f"/invoice/{order_id}.pdf"
         try:
-            # attempt to send the PDF document via WhatsApp
             send_document(from_wa, pdf_url, f"{order_id}.pdf", "Your pro-forma invoice")
         except Exception as e:
-            # log and fall back to plain text link
             print("WhatsApp document send failed:", e)
             try:
                 send_text(from_wa, "Here is your pro-forma invoice: " + pdf_url)
@@ -670,39 +583,10 @@ def webhook():
         print("Webhook error:", e, "payload:", json.dumps(data)[:1000])
         return "error", 200
 
-# --- Admin: list recent orders (JSON) ---
-@app.get("/orders")
-def orders():
-    if request.args.get("token") != ADMIN_TOKEN:
-        return abort(403)
-    return jsonify(get_recent_orders())
-
-# --- Cron: send thank-you followups ---
-@app.post("/send_followups")
-def send_followups():
-    if request.args.get("token") != ADMIN_TOKEN:
-        return abort(403)
-    now_iso = datetime.utcnow().isoformat() + "Z"
-    due = due_followups(now_iso)
-    sent = 0
-    for o in due:
-        try:
-            msg = (
-                "🙏 Asante for choosing Neochicks! "
-                f"Your order *{o['id']}* ({o['model']} {o['capacity']} eggs) is noted.\n"
-                "If you need any assistance before delivery, reply here or call " + CALL_LINE + "."
-            )
-            send_text(o["wa_from"], msg)
-            mark_followup_sent(o["id"])
-            sent += 1
-        except Exception as e:
-            print("Followup send failed for", o["id"], e)
-    return jsonify({"processed": len(due), "sent": sent})
-
-# --- Serve the PDF invoice ---
+# --- Serve the PDF invoice (from memory) ---
 @app.get("/invoice/<order_id>.pdf")
 def invoice(order_id):
-    order = get_order(order_id)
+    order = INVOICES.get(order_id)
     if not order:
         return abort(404)
     pdf_bytes = generate_invoice_pdf(order)
@@ -715,5 +599,5 @@ def testmail():
     return ("OK" if ok else "FAIL"), 200
 
 if __name__ == "__main__":
-    init_db()
+    # No DB init needed
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 3000)))
