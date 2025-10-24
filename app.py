@@ -523,34 +523,16 @@ if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t
     _cleanup_invoices()
 
     # WhatsApp: send document link (with fallback to text)
+
 @app.post("/webhook")
 def webhook():
     data = request.get_json()
-    from_wa = data["from"]
-    msg = data["text"].strip().upper()
+    from_wa = data.get("from")
+    msg = data.get("text", "").strip().upper()
 
     if msg == "CONFIRM":
-        order_id = generate_order_id()
-
-        # Generate and email the invoice
-        pdf_path = generate_invoice_pdf(order_id)
-        send_email("Neochicks Pro-forma Invoice", f"Order {order_id}", attachments=[pdf_path])
-
-        # WhatsApp: send document link (with fallback to text)
-        pdf_url = request.url_root.rstrip("/") + f"/invoice/{order_id}.pdf"
-        try:
-            send_document(from_wa, pdf_url, f"{order_id}.pdf", "Your pro-forma invoice")
-        except Exception as e:
-            print("WhatsApp document send failed:", e)
-            try:
-                send_text(from_wa, "Here is your pro-forma invoice: " + pdf_url)
-            except Exception as e2:
-                print("Fallback text send failed:", e2)
-
-        # reset session
+        # ... your CONFIRM logic ...
         SESS[from_wa] = {"state": None, "page": 1}
-
-        # ✅ return must be inside this function, indented like below
         return {
             "text": (
                 "✅ Order confirmed! I’ve sent your pro-forma invoice. "
