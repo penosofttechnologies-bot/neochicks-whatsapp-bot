@@ -9,13 +9,12 @@ Neochicks WhatsApp Bot (DB-free patched version)
 NOTE: In-memory storage clears on deploy/restart. This is intended as a
 DB-free interim. Keep WEB_CONCURRENCY=1 on Render for consistent behavior.
 """
-
+import logging
 from flask import Flask, request, jsonify, send_file, abort
 import os, json, re, requests, io
 from datetime import datetime, timedelta
 from fpdf import FPDF  # pip install fpdf==1.7.2
 
-import logging
 app.logger.setLevel(logging.INFO)
 
 # =========================
