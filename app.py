@@ -1,5 +1,5 @@
 """
-Neochicks WhatsApp Bot (DB-free, cleaned)
+Neochicks WhatsApp Bot (DB-free, cleaned + full catalog)
 
 - Removes DB reads/writes.
 - Keeps email + PDF generation + WhatsApp delivery.
@@ -111,12 +111,50 @@ MENU_BUTTONS = [
     "Talk to an Agent 👩🏽‍💼"
 ]
 
-# (Minimal catalog -- keep your full catalog if you want)
+# -------------------------
+# Full product catalog (restored)
+# -------------------------
 CATALOG = [
-    {"name":"56 Eggs","capacity":56,"price":13000,"solar":True,"free_gen":False,"image":""},
-    {"name":"528 Eggs","capacity":528,"price":63000,"solar":False,"free_gen":True,"image":""},
-    {"name":"880 Eggs","capacity":880,"price":75000,"solar":False,"free_gen":True,"image":""},
+    {"name":"56 Eggs","capacity":56,"price":13000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2018/12/56-Eggs-solar-electric-incubator-1-600x449.png"},
+    {"name":"64 Eggs","capacity":64,"price":14000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/64-Eggs-solar-electric-incubator-e1630976080329-600x450.jpg"},
+    {"name":"112 Eggs","capacity":104,"price":19000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/104-Eggs-Incubator-1.png"},
+    {"name":"128 Eggs","capacity":128,"price":20000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/128-Eggs-solar-incubator-2.png"},
+    {"name":"192 Eggs","capacity":192,"price":28000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/192-egg-incubator-1-600x600.jpg"},
+    {"name":"204 Eggs","capacity":204,"price":30000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2025/07/204-eggs-incubator-600x650.jpg"},
+    {"name":"256 Eggs","capacity":256,"price":33000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2023/01/256-eggs-large-photo-600x676.jpeg"},
+    {"name":"264 Eggs","capacity":264,"price":45000,"solar":False,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/264-Eggs-automatic-incubator-1.jpg"},
+    {"name":"300 Eggs","capacity":300,"price":52000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/300-Eggs-solar-incubator.jpg"},
+    {"name":"350 Eggs","capacity":350,"price":54000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/300-Eggs-solar-incubator.jpg"},
+    {"name":"352 Eggs","capacity":352,"price":54000,"solar":False,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/352-Eggs-automatic-incubator-1.jpg"},
+    {"name":"528 Eggs","capacity":528,"price":63000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/528-Eggs-automatic-Incubator-1-600x425.jpg"},
+    {"name":"616 Eggs","capacity":616,"price":66000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2022/01/528-inc-600x800.png"},
+    {"name":"880 Eggs","capacity":880,"price":75000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/880-Eggs-incubator-2.jpg"},
+    {"name":"1056 Eggs","capacity":1056,"price":80000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/1056-full-front-view.jpg"},
+    {"name":"1232 Eggs","capacity":1232,"price":90000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/1232-Eggs-automatic-incubator.jpg"},
+    {"name":"1584 Eggs","capacity":1584,"price":115000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/1584-Eggs-Incubator.jpg"},
+    {"name":"2112 Eggs","capacity":2112,"price":120000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/2112-Eggs-Incubator.png"},
+    {"name":"4928 Eggs","capacity":4928,"price":230000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280Incubator.jpg"},
+    {"name":"5280 Eggs","capacity":5280,"price":240000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280-Eggs-Incubator.png"},
 ]
+
+def product_line(p:dict) -> str:
+    tag = " (Solar/Electric)" if p.get("solar") else ""
+    gen = " + *Free Backup Generator*" if p.get("free_gen") else ""
+    return f"- {p['name']}{tag} → {ksh(p['price'])}{gen}"
+
+def price_page_text(page:int=1, per_page:int=12) -> str:
+    items = sorted(CATALOG, key=lambda x: x["capacity"])
+    total = len(items)
+    pages = max(1, (total + per_page - 1)//per_page)
+    page = max(1, min(page, pages))
+    start = (page-1)*per_page
+    chunk = items[start:start+per_page]
+    lines = [product_line(p) for p in chunk]
+    footer = (
+        f"\n\nPage {page} of {pages}. "
+        "Type *next* to see more, or type a *capacity that you have in mind* (e.g., 100, 200, 528, 1000 etc)."
+    )
+    return "🐣 *Capacities with Prices*\n" + "\n".join(lines) + footer
 
 def find_by_capacity(cap:int):
     items = sorted(CATALOG, key=lambda x: x["capacity"])
@@ -289,13 +327,25 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     # PRICES
     if any(k in low for k in ["capacities", "capacity", "capacities with prices", "prices", "price", "bei", "gharama"]):
         sess["state"] = "prices"; sess["page"] = 1
-        # simple page 1 response
-        lines = []
-        for p in sorted(CATALOG, key=lambda x: x["capacity"])[:8]:
-            lines.append(f"- {p['name']} → {ksh(p['price'])}")
-        return {"text": "🐣 *Capacities with Prices*\n" + "\n".join(lines)}
+        return {"text": price_page_text(page=1)}
+    if sess.get("state") == "prices" and low in {"next","more"}:
+        sess["page"] += 1; return {"text": price_page_text(page=sess["page"])}
+    if sess.get("state") == "prices" and low in {"back","prev","previous"}:
+        sess["page"] = max(1, sess["page"]-1); return {"text": price_page_text(page=sess["page"])}
+    if sess.get("state") == "prices":
+        m = re.search(r"([0-9]{2,5})", low)
+        if m:
+            cap = int(m.group(1)); p = find_by_capacity(cap)
+            if p:
+                extra = " (Solar)" if p["solar"] else ""
+                gen = "\n🎁 Includes *Free Backup Generator*" if p["free_gen"] else ""
+                out = {"text": "📦 *"+p['name']+"*"+extra+"\nCapacity: "+str(p['capacity'])+" eggs\nPrice: "+ksh(p['price'])+gen}
+                if p.get("image"):
+                    out.update({"mediaUrl": p["image"], "caption": p['name'] + " — " + ksh(p['price']) + "\n\nReply with your *county* for delivery ETA and quote. " + PAYMENT_NOTE + "." })
+                sess["last_product"] = p
+                return out
 
-    # DELIVERY flow
+    # DELIVERY → COUNTY → NAME → PHONE → PRO-FORMA
     if ("delivery" in low) or ("deliver" in low) or ("delivery terms" in low):
         sess["state"] = "await_county"
         return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. " + PAYMENT_NOTE + ".\nWhich *county* are you in?"}
@@ -322,9 +372,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
         sess["customer_phone"] = phone; sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
-
-    # EDIT flows omitted for brevity in this cleaned version
-    # ...
 
     # CONFIRM: allow whitespace and case-insensitive match
     if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
