@@ -370,6 +370,68 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         phone = re.sub(r"[^0-9+ ]", "", t)
         if len(re.sub(r"\D", "", phone)) < 9:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
+              # EDIT flow — available from the pro-forma screen
+    if sess.get("state") == "await_confirm" and "edit" in low:
+        sess["state"] = "edit_menu"
+        return {"text": ("What would you like to change?\n"
+                         "1) Name\n2) Phone\n3) County\n4) Model (capacity)\n\n"
+                         "Reply with *1, 2, 3,* or *4*.\n"
+                         "Or type *CANCEL* to discard and go back to the main menu.")}
+
+    if sess.get("state") == "edit_menu":
+        choice = re.sub(r"[^0-9a-z ]", "", low).strip()
+        if choice in {"1", "name"}:
+            sess["state"] = "edit_name"
+            return {"text": "Okay — please type the *correct full name*:"}
+        if choice in {"2", "phone"}:
+            sess["state"] = "edit_phone"
+            return {"text": "Okay — please type the *correct phone number* (07XX... or +2547...):"}
+        if choice in {"3", "county"}:
+            sess["state"] = "edit_county"
+            return {"text": "Okay — please type your *county* (e.g., Nairobi, Nakuru, Mombasa):"}
+        if choice in {"4", "model", "capacity"}:
+            sess["state"] = "edit_model"
+            return {"text": "Type the *capacity number* you want (e.g., 204, 528, 1056):"}
+        return {"text": "Please reply with *1, 2, 3,* or *4*."}
+
+    if sess.get("state") == "edit_name":
+        name = (t or "").strip()
+        if len(name) < 2:
+            return {"text": "That looks too short. Please type your *full name* (e.g., Jane Wanjiku)."}
+        sess["customer_name"] = name
+        sess["state"] = "await_confirm"
+        return {"text": build_proforma_text(sess)}
+
+    if sess.get("state") == "edit_phone":
+        phone = re.sub(r"[^0-9+ ]", "", (t or ""))
+        if len(re.sub(r"\D", "", phone)) < 9:
+            return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
+        sess["customer_phone"] = phone
+        sess["state"] = "await_confirm"
+        return {"text": build_proforma_text(sess)}
+
+    if sess.get("state") == "edit_county":
+        county_raw = (t or "").strip()
+        county = re.sub(r"[^a-z ]", "", county_raw.lower()).strip()
+        if not county:
+            return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
+        sess["last_county"] = county.title()
+        sess["last_eta"] = delivery_eta_text(county)
+        sess["state"] = "await_confirm"
+        return {"text": build_proforma_text(sess)}
+
+    if sess.get("state") == "edit_model":
+        m = re.search(r"([0-9]{2,5})", low)
+        if not m:
+            return {"text": "Please type just the *capacity number* (e.g., 204, 528, 1056)."}
+        cap = int(m.group(1))
+        p = find_by_capacity(cap)
+        if not p:
+            return {"text": "I couldn't find that capacity. Try 204, 264, 528, 1056, 5280 etc."}
+        sess["last_product"] = p
+        sess["state"] = "await_confirm"
+        return {"text": build_proforma_text(sess)}
+
         sess["customer_phone"] = phone; sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
