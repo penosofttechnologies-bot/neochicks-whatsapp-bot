@@ -370,7 +370,11 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         phone = re.sub(r"[^0-9+ ]", "", t)
         if len(re.sub(r"\D", "", phone)) < 9:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
-              # EDIT flow — available from the pro-forma screen
+        sess["customer_phone"] = phone; sess["state"] = "await_confirm"
+        # 🔴 IMPORTANT: we RETURN here so we don't fall through
+        return {"text": build_proforma_text(sess)}
+
+    # >>> EDIT FLOW (must be BEFORE the CONFIRM block) <<<
     if sess.get("state") == "await_confirm" and "edit" in low:
         sess["state"] = "edit_menu"
         return {"text": ("What would you like to change?\n"
@@ -381,33 +385,27 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     if sess.get("state") == "edit_menu":
         choice = re.sub(r"[^0-9a-z ]", "", low).strip()
         if choice in {"1", "name"}:
-            sess["state"] = "edit_name"
-            return {"text": "Okay — please type the *correct full name*:"}
+            sess["state"] = "edit_name";  return {"text": "Okay — please type the *correct full name*:"}
         if choice in {"2", "phone"}:
-            sess["state"] = "edit_phone"
-            return {"text": "Okay — please type the *correct phone number* (07XX... or +2547...):"}
+            sess["state"] = "edit_phone"; return {"text": "Okay — please type the *correct phone number* (07XX... or +2547...):"}
         if choice in {"3", "county"}:
-            sess["state"] = "edit_county"
-            return {"text": "Okay — please type your *county* (e.g., Nairobi, Nakuru, Mombasa):"}
+            sess["state"] = "edit_county"; return {"text": "Okay — please type your *county* (e.g., Nairobi, Nakuru, Mombasa):"}
         if choice in {"4", "model", "capacity"}:
-            sess["state"] = "edit_model"
-            return {"text": "Type the *capacity number* you want (e.g., 204, 528, 1056):"}
+            sess["state"] = "edit_model"; return {"text": "Type the *capacity number* you want (e.g., 204, 528, 1056):"}
         return {"text": "Please reply with *1, 2, 3,* or *4*."}
 
     if sess.get("state") == "edit_name":
         name = (t or "").strip()
         if len(name) < 2:
             return {"text": "That looks too short. Please type your *full name* (e.g., Jane Wanjiku)."}
-        sess["customer_name"] = name
-        sess["state"] = "await_confirm"
+        sess["customer_name"] = name; sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
     if sess.get("state") == "edit_phone":
         phone = re.sub(r"[^0-9+ ]", "", (t or ""))
         if len(re.sub(r"\D", "", phone)) < 9:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
-        sess["customer_phone"] = phone
-        sess["state"] = "await_confirm"
+        sess["customer_phone"] = phone; sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
     if sess.get("state") == "edit_county":
@@ -415,8 +413,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         county = re.sub(r"[^a-z ]", "", county_raw.lower()).strip()
         if not county:
             return {"text": "Please type your *county* name (e.g., Nairobi, Nakuru, Mombasa)."}
-        sess["last_county"] = county.title()
-        sess["last_eta"] = delivery_eta_text(county)
+        sess["last_county"] = county.title(); sess["last_eta"] = delivery_eta_text(county)
         sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
@@ -428,14 +425,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         p = find_by_capacity(cap)
         if not p:
             return {"text": "I couldn't find that capacity. Try 204, 264, 528, 1056, 5280 etc."}
-        sess["last_product"] = p
-        sess["state"] = "await_confirm"
+        sess["last_product"] = p; sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
-        sess["customer_phone"] = phone; sess["state"] = "await_confirm"
-        return {"text": build_proforma_text(sess)}
-
-    # CONFIRM: allow whitespace and case-insensitive match
+    # CONFIRM (must be AFTER EDIT block)
     if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
         p = sess.get("last_product") or {}
         county = sess.get("last_county", "-")
@@ -456,10 +449,9 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             "created_at_utc": created_at.isoformat() + "Z",
         }
 
-        # email notify
-        subject = f"ORDER CONFIRMED — {order['model']} for {order['customer_name']} ({order_id})"
-        body = (
-            f"New order confirmation from WhatsApp bot\n\n"
+        send_email(
+            f"ORDER CONFIRMED — {order['model']} for {order['customer_name']} ({order_id})",
+            "New order confirmation from WhatsApp bot\n\n"
             f"Order ID: {order_id}\n"
             f"Customer Name: {order['customer_name']}\n"
             f"Customer Phone: {order['customer_phone']}\n"
@@ -471,22 +463,15 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             f"Payment: {PAYMENT_NOTE}\n"
             f"Timestamp: {created_at.isoformat()}Z\n"
         )
-        send_email(subject, body)
 
-        # Save order in memory & write durable pdf to /tmp
         INVOICES[order_id] = order
         try:
             pdf_bytes = generate_invoice_pdf(order)
-            pdf_path = f"/tmp/{order_id}.pdf"
-            with open(pdf_path, "wb") as fh:
+            with open(f"/tmp/{order_id}.pdf", "wb") as fh:
                 fh.write(pdf_bytes)
-            app.logger.info("[invoice] wrote %s (size=%d)", pdf_path, len(pdf_bytes))
         except Exception:
             app.logger.exception("Failed to write invoice PDF to /tmp")
 
-        _cleanup_invoices()
-
-        # WhatsApp: send document link (fallback to text link)
         pdf_url = (request.url_root or "").rstrip("/") + f"/invoice/{order_id}.pdf"
         try:
             send_document(from_wa, pdf_url, f"{order_id}.pdf", "Your pro-forma invoice")
@@ -497,7 +482,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             except Exception:
                 app.logger.exception("Fallback text send failed")
 
-        # reset session
         SESS[from_wa] = {"state": None, "page": 1}
         return {"text": "✅ Order confirmed! I’ve sent your pro-forma invoice. Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
 
