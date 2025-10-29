@@ -1,54 +1,54 @@
-"""
-Neochicks WhatsApp Bot (DB-free, cleaned + full catalog)
-
-- Removes DB reads/writes.
-- Keeps email + PDF generation + WhatsApp delivery.
-- Stores confirmed orders temporarily in-memory and writes a durable copy
+  """
+  Neochicks WhatsApp Bot (DB-free, cleaned + full catalog)
+  
+  - Removes DB reads/writes.
+  - Keeps email + PDF generation + WhatsApp delivery.
+  - Stores confirmed orders temporarily in-memory and writes a durable copy
   of each generated PDF to /tmp so /invoice/<id>.pdf works reliably.
-"""
-
-import os
-import io
-import re
-import json
-import logging
-import requests
-from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_file, abort
-from fpdf import FPDF  # pip install fpdf==1.7.2
-
-# -------------------------
-# App + logging
-# -------------------------
-app = Flask(__name__)
-app.logger.setLevel(logging.INFO)
-logging.basicConfig(level=logging.INFO)
-
-# -------------------------
-# Config (env vars)
-# -------------------------
-VERIFY_TOKEN    = os.getenv("VERIFY_TOKEN", "changeme")
-WHATSAPP_TOKEN  = os.getenv("WHATSAPP_TOKEN", "")
-PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID", "")
-GRAPH_BASE      = "https://graph.facebook.com/v20.0"
-
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
-SENDGRID_FROM    = os.getenv("SENDGRID_FROM", "")
-SALES_EMAIL      = os.getenv("SALES_EMAIL", SENDGRID_FROM)
-
-BUSINESS_NAME = "Neochicks Poultry Ltd."
-CALL_LINE     = "0707787884"
-PAYMENT_NOTE  = "Pay on delivery"
-AFTER_HOURS_NOTE = "We are currently off till early morning."
-
-INVOICE_TTL_MIN = int(os.getenv("INVOICE_TTL_MIN", "1440"))  # minutes
-
-# -------------------------
-# In-memory store (temporary)
-# -------------------------
-INVOICES = {}  # { order_id: order_dict }
-
-def _cleanup_invoices(now: datetime | None = None):
+  """
+  
+  import os
+  import io
+  import re
+  import json
+  import logging
+  import requests
+  from datetime import datetime, timedelta
+  from flask import Flask, request, jsonify, send_file, abort
+  from fpdf import FPDF  # pip install fpdf==1.7.2
+  
+  # -------------------------
+  # App + logging
+  # -------------------------
+  app = Flask(__name__)
+  app.logger.setLevel(logging.INFO)
+  logging.basicConfig(level=logging.INFO)
+  
+  # -------------------------
+  # Config (env vars)
+  # -------------------------
+  VERIFY_TOKEN    = os.getenv("VERIFY_TOKEN", "changeme")
+  WHATSAPP_TOKEN  = os.getenv("WHATSAPP_TOKEN", "")
+  PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID", "")
+  GRAPH_BASE      = "https://graph.facebook.com/v20.0"
+  
+  SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
+  SENDGRID_FROM    = os.getenv("SENDGRID_FROM", "")
+  SALES_EMAIL      = os.getenv("SALES_EMAIL", SENDGRID_FROM)
+  
+  BUSINESS_NAME = "Neochicks Poultry Ltd."
+  CALL_LINE     = "0707787884"
+  PAYMENT_NOTE  = "Pay on delivery"
+  AFTER_HOURS_NOTE = "We are currently off till early morning."
+  
+  INVOICE_TTL_MIN = int(os.getenv("INVOICE_TTL_MIN", "1440"))  # minutes
+  
+  # -------------------------
+  # In-memory store (temporary)
+  # -------------------------
+  INVOICES = {}  # { order_id: order_dict }
+  
+  def _cleanup_invoices(now: datetime | None = None):
     now = now or datetime.utcnow()
     drop = []
     for oid, o in INVOICES.items():
@@ -60,20 +60,20 @@ def _cleanup_invoices(now: datetime | None = None):
             drop.append(oid)
     for oid in drop:
         INVOICES.pop(oid, None)
-
-# -------------------------
-# Utilities, catalog, helpers
-# -------------------------
-COUNTIES = {
+  
+  # -------------------------
+  # Utilities, catalog, helpers
+  # -------------------------
+  COUNTIES = {
     "baringo","bomet","bungoma","busia","elgeyo marakwet","embu","garissa","homa bay","isiolo",
     "kajiado","kakamega","kericho","kiambu","kilifi","kirinyaga","kisii","kisumu","kitui",
     "kwale","laikipia","lamu","machakos","makueni","mandera","marsabit","meru","migori","mombasa",
     "murang'a","muranga","nairobi","nakuru","nandi","narok","nyamira","nyandarua","nyeri",
     "samburu","siaya","taita taveta","tana river","tharaka nithi","trans nzoia","turkana",
     "uasin gishu","vihiga","wajir","west pokot"
-}
-
-def guess_county(text: str):
+  }
+  
+  def guess_county(text: str):
     cleaned = re.sub(r"[^a-z ]", "", (text or "").lower()).strip()
     if not cleaned:
         return None
@@ -89,32 +89,32 @@ def guess_county(text: str):
         if joined in COUNTIES:
             return joined
     return None
-
-def ksh(n:int) -> str:
+  
+  def ksh(n:int) -> str:
     try:
         return f"KSh {int(n):,}"
     except Exception:
         return f"KSh {n}"
-
-def is_after_hours():
+  
+  def is_after_hours():
     eat_hour = (datetime.utcnow().hour + 3) % 24
     return not (6 <= eat_hour < 23)
-
-def delivery_eta_text(county: str) -> str:
+  
+  def delivery_eta_text(county: str) -> str:
     key = (county or "").strip().lower().split()[0] if county else ""
     return "same day" if key == "nairobi" else "24 hours"
-
-MENU_BUTTONS = [
+  
+  MENU_BUTTONS = [
     "Prices/Capacities 💰📦",
     "Delivery Terms 🚚",
     "Incubator issues 🛠️",
     "Talk to an Agent 👩🏽‍💼"
-]
-
-# -------------------------
-# Full product catalog (restored)
-# -------------------------
-CATALOG = [
+  ]
+  
+  # -------------------------
+  # Full product catalog (restored)
+  # -------------------------
+  CATALOG = [
     {"name":"56 Eggs","capacity":56,"price":13000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2018/12/56-Eggs-solar-electric-incubator-1-600x449.png"},
     {"name":"64 Eggs","capacity":64,"price":14000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/64-Eggs-solar-electric-incubator-e1630976080329-600x450.jpg"},
     {"name":"112 Eggs","capacity":104,"price":19000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/104-Eggs-Incubator-1.png"},
@@ -135,14 +135,14 @@ CATALOG = [
     {"name":"2112 Eggs","capacity":2112,"price":120000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/2112-Eggs-Incubator.png"},
     {"name":"4928 Eggs","capacity":4928,"price":230000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280Incubator.jpg"},
     {"name":"5280 Eggs","capacity":5280,"price":240000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280-Eggs-Incubator.png"},
-]
-
-def product_line(p:dict) -> str:
+  ]
+  
+  def product_line(p:dict) -> str:
     tag = " (Solar/Electric)" if p.get("solar") else ""
     gen = " + *Free Backup Generator*" if p.get("free_gen") else ""
     return f"- {p['name']}{tag} → {ksh(p['price'])}{gen}"
-
-def price_page_text(page:int=1, per_page:int=12) -> str:
+  
+  def price_page_text(page:int=1, per_page:int=12) -> str:
     items = sorted(CATALOG, key=lambda x: x["capacity"])
     total = len(items)
     pages = max(1, (total + per_page - 1)//per_page)
@@ -155,18 +155,18 @@ def price_page_text(page:int=1, per_page:int=12) -> str:
         "Type *next* to see more, or type a *capacity that you have in mind* (e.g., 100, 200, 528, 1000 etc)."
     )
     return "🐣 *Capacities with Prices*\n" + "\n".join(lines) + footer
-
-def find_by_capacity(cap:int):
+  
+  def find_by_capacity(cap:int):
     items = sorted(CATALOG, key=lambda x: x["capacity"])
     for p in items:
         if p["capacity"] >= cap:
             return p
     return items[-1] if items else None
-
-# -------------------------
-# PDF generation
-# -------------------------
-def generate_invoice_pdf(order: dict) -> bytes:
+  
+  # -------------------------
+  # PDF generation
+  # -------------------------
+  def generate_invoice_pdf(order: dict) -> bytes:
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
@@ -196,11 +196,11 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.set_font("Arial", "I", 10)
     pdf.multi_cell(0, 5, "This is a pro-forma invoice. For assistance call " + CALL_LINE + ".")
     return pdf.output(dest="S").encode("latin1")
-
-# -------------------------
-# Email (SendGrid)
-# -------------------------
-def send_email(subject: str, body: str) -> bool:
+  
+  # -------------------------
+  # Email (SendGrid)
+  # -------------------------
+  def send_email(subject: str, body: str) -> bool:
     if not (SENDGRID_API_KEY and SENDGRID_FROM and SALES_EMAIL):
         app.logger.info("Email not sent—missing SENDGRID_API_KEY/SENDGRID_FROM/SALES_EMAIL")
         return False
@@ -220,29 +220,69 @@ def send_email(subject: str, body: str) -> bool:
     except Exception as e:
         app.logger.exception("SendGrid exception")
         return False
-
-# -------------------------
-# WhatsApp helpers
-# -------------------------
-def _wa_headers():
+  
+  # -------------------------
+  # WhatsApp helpers
+  # -------------------------
+  def _wa_headers():
     return {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
-
-def send_text(to: str, body: str):
+  
+  def send_text(to: str, body: str):
     url = f"{GRAPH_BASE}/{PHONE_NUMBER_ID}/messages"
     payload = {"messaging_product":"whatsapp","to":to,"type":"text","text":{"body":body}}
     r = requests.post(url, headers=_wa_headers(), json=payload, timeout=30)
     r.raise_for_status()
     return r.json()
-
-def send_document(to: str, link: str, filename: str, caption: str = ""):
+  
+  def send_document(to: str, link: str, filename: str, caption: str = ""):
     url = f"{GRAPH_BASE}/{PHONE_NUMBER_ID}/messages"
     payload = {"messaging_product":"whatsapp","to":to,"type":"document",
                "document":{"link":link,"filename":filename,"caption":caption}}
     r = requests.post(url, headers=_wa_headers(), json=payload, timeout=30)
     r.raise_for_status()
     return r.json()
-
-def send_buttons(to: str, titles, prompt_text="Pick one:"):
+  # =========================
+  # WhatsApp: Media Upload Helpers
+  # =========================
+  def upload_media_pdf(pdf_bytes: bytes, filename: str = "invoice.pdf") -> str | None:
+    """
+    Upload a PDF to WhatsApp and return media_id, or None on failure.
+    """
+    try:
+        url = f"{GRAPH_BASE}/{PHONE_NUMBER_ID}/media"
+        files = {
+            "file": (filename, pdf_bytes, "application/pdf"),
+        }
+        data = {
+            "messaging_product": "whatsapp",
+        }
+        headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}"}
+        r = requests.post(url, headers=headers, data=data, files=files, timeout=60)
+        r.raise_for_status()
+        media_id = r.json().get("id")
+        return media_id
+    except Exception:
+        app.logger.exception("Media upload failed")
+        return None
+  
+  
+  def send_document_by_id(to: str, media_id: str, filename: str, caption: str = ""):
+    """
+    Send an already-uploaded document (by media_id) to a WhatsApp user.
+    """
+    url = f"{GRAPH_BASE}/{PHONE_NUMBER_ID}/messages"
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "document",
+        "document": {"id": media_id, "filename": filename, "caption": caption},
+    }
+    r = requests.post(url, headers=_wa_headers(), json=payload, timeout=30)
+    r.raise_for_status()
+    return r.json()
+  
+  
+  def send_buttons(to: str, titles, prompt_text="Pick one:"):
     url = f"{GRAPH_BASE}/{PHONE_NUMBER_ID}/messages"
     buttons = [{"type":"reply","reply":{"id":f"b{i+1}","title":t[:20]}} for i,t in enumerate(titles[:3])]
     payload = {"messaging_product":"whatsapp","to":to,"type":"interactive",
@@ -250,20 +290,20 @@ def send_buttons(to: str, titles, prompt_text="Pick one:"):
     r = requests.post(url, headers=_wa_headers(), json=payload, timeout=30)
     r.raise_for_status()
     return r.json()
-
-def send_image(to: str, link: str, caption: str = ""):
+  
+  def send_image(to: str, link: str, caption: str = ""):
     url = f"{GRAPH_BASE}/{PHONE_NUMBER_ID}/messages"
     payload = {"messaging_product":"whatsapp","to":to,"type":"image","image":{"link":link,"caption":caption}}
     r = requests.post(url, headers=_wa_headers(), json=payload, timeout=30)
     r.raise_for_status()
     return r.json()
-
-# -------------------------
-# Session store
-# -------------------------
-SESS = {}  # mapping phone -> session dict
-
-def build_proforma_text(sess: dict) -> str:
+  
+  # -------------------------
+  # Session store
+  # -------------------------
+  SESS = {}  # mapping phone -> session dict
+  
+  def build_proforma_text(sess: dict) -> str:
     p = sess.get("last_product") or {}
     county = sess.get("last_county", "-")
     eta = sess.get("last_eta", "24 hours")
@@ -284,19 +324,19 @@ def build_proforma_text(sess: dict) -> str:
         "If this looks correct, reply *CONFIRM* to place the order, or type *EDIT* to change details.\n"
         "Type *CANCEL* to discard and go back to the main menu."
     )
-
-def new_order_id():
+  
+  def new_order_id():
     ts = datetime.utcnow().strftime("%y%m%d%H%M%S")
     return f"NEO-{ts}"
-
-# -------------------------
-# Brain / router
-# -------------------------
-def brain_reply(text: str, from_wa: str = "") -> dict:
+  
+  # -------------------------
+  # Brain / router
+  # -------------------------
+  def brain_reply(text: str, from_wa: str = "") -> dict:
     t = (text or "").strip()
     low = t.lower()
     sess = SESS.setdefault(from_wa, {"state": None, "page": 1})
-
+  
     # CANCEL flow
     if any(k in low for k in ["cancel","stop","abort","start over","back to menu","main menu","menu"]) and \
        sess.get("state") in {"await_name","await_phone","await_confirm","edit_menu","edit_name","edit_phone","edit_county","edit_model","cancel_confirm"}:
@@ -314,16 +354,16 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             if prev_state in {"await_confirm","edit_menu","edit_name","edit_phone","edit_county","edit_model"}:
                 return {"text": "Okay — resuming your order.\n\n" + build_proforma_text(sess)}
             return {"text": "Okay — continue."}
-
+  
     after_note = ("\n\n⏰ " + AFTER_HOURS_NOTE) if is_after_hours() else ""
-
+  
     # MENU
     if low in {"", "hi", "hello", "start", "want", "incubator", "need an incubator"} and not sess.get("state"):
         return {"text": ("🐣 Karibu *Neochicks Ltd.*\n"
                          "The leading incubators supplier in Kenya and East Africa.\n"
                          "Click one of the options below and I will answer you:\n\n"
                          "☎️ " + CALL_LINE) + after_note, "buttons": MENU_BUTTONS}
-
+  
     # PRICES
     if any(k in low for k in ["capacities", "capacity", "capacities with prices", "prices", "price", "bei", "gharama"]):
         sess["state"] = "prices"; sess["page"] = 1
@@ -344,12 +384,12 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                     out.update({"mediaUrl": p["image"], "caption": p['name'] + " — " + ksh(p['price']) + "\n\nReply with your *county* for delivery ETA and quote. " + PAYMENT_NOTE + "." })
                 sess["last_product"] = p
                 return out
-
+  
     # DELIVERY → COUNTY → NAME → PHONE → PRO-FORMA
     if ("delivery" in low) or ("deliver" in low) or ("delivery terms" in low):
         sess["state"] = "await_county"
         return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. " + PAYMENT_NOTE + ".\nWhich *county* are you in?"}
-
+  
     if sess.get("state") == "await_county":
         county = re.sub(r"[^a-z ]", "", low).strip()
         if not county:
@@ -358,14 +398,14 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["last_county"] = county.title(); sess["last_eta"] = eta
         sess["state"] = "await_name"
         return {"text": f"📍 {county.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nGreat! Please share your *full name* for the pro-forma."}
-
+  
     if sess.get("state") == "await_name":
         name = t.strip()
         if len(name) < 2:
             return {"text": "Please type your *full name* (e.g., Jane Wanjiku)."}
         sess["customer_name"] = name; sess["state"] = "await_phone"
         return {"text": "Thanks! Now your *phone number* (for delivery coordination):"}
-
+  
     if sess.get("state") == "await_phone":
         phone = re.sub(r"[^0-9+ ]", "", t)
         if len(re.sub(r"\D", "", phone)) < 9:
@@ -373,7 +413,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["customer_phone"] = phone; sess["state"] = "await_confirm"
         # 🔴 IMPORTANT: we RETURN here so we don't fall through
         return {"text": build_proforma_text(sess)}
-
+  
     # >>> EDIT FLOW (must be BEFORE the CONFIRM block) <<<
     if sess.get("state") == "await_confirm" and "edit" in low:
         sess["state"] = "edit_menu"
@@ -381,7 +421,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                          "1) Name\n2) Phone\n3) County\n4) Model (capacity)\n\n"
                          "Reply with *1, 2, 3,* or *4*.\n"
                          "Or type *CANCEL* to discard and go back to the main menu.")}
-
+  
     if sess.get("state") == "edit_menu":
         choice = re.sub(r"[^0-9a-z ]", "", low).strip()
         if choice in {"1", "name"}:
@@ -393,21 +433,21 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         if choice in {"4", "model", "capacity"}:
             sess["state"] = "edit_model"; return {"text": "Type the *capacity number* you want (e.g., 204, 528, 1056):"}
         return {"text": "Please reply with *1, 2, 3,* or *4*."}
-
+  
     if sess.get("state") == "edit_name":
         name = (t or "").strip()
         if len(name) < 2:
             return {"text": "That looks too short. Please type your *full name* (e.g., Jane Wanjiku)."}
         sess["customer_name"] = name; sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
-
+  
     if sess.get("state") == "edit_phone":
         phone = re.sub(r"[^0-9+ ]", "", (t or ""))
         if len(re.sub(r"\D", "", phone)) < 9:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
         sess["customer_phone"] = phone; sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
-
+  
     if sess.get("state") == "edit_county":
         county_raw = (t or "").strip()
         county = re.sub(r"[^a-z ]", "", county_raw.lower()).strip()
@@ -416,7 +456,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["last_county"] = county.title(); sess["last_eta"] = delivery_eta_text(county)
         sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
-
+  
     if sess.get("state") == "edit_model":
         m = re.search(r"([0-9]{2,5})", low)
         if not m:
@@ -427,7 +467,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             return {"text": "I couldn't find that capacity. Try 204, 264, 528, 1056, 5280 etc."}
         sess["last_product"] = p; sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
-
+  
     # CONFIRM (must be AFTER EDIT block)
     if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
         p = sess.get("last_product") or {}
@@ -435,7 +475,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         eta = sess.get("last_eta", delivery_eta_text(county))
         order_id = new_order_id()
         created_at = datetime.utcnow()
-
+  
         order = {
             "id": order_id,
             "wa_from": from_wa,
@@ -448,7 +488,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             "eta": eta,
             "created_at_utc": created_at.isoformat() + "Z",
         }
-
+  
         send_email(
             f"ORDER CONFIRMED — {order['model']} for {order['customer_name']} ({order_id})",
             "New order confirmation from WhatsApp bot\n\n"
@@ -463,7 +503,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             f"Payment: {PAYMENT_NOTE}\n"
             f"Timestamp: {created_at.isoformat()}Z\n"
         )
-
+  
         INVOICES[order_id] = order
         try:
             pdf_bytes = generate_invoice_pdf(order)
@@ -471,7 +511,29 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 fh.write(pdf_bytes)
         except Exception:
             app.logger.exception("Failed to write invoice PDF to /tmp")
-
+    # WhatsApp: send document directly by media upload
+    media_id = upload_media_pdf(pdf_bytes, f"{order_id}.pdf")
+    if media_id:
+    try:
+        send_document_by_id(from_wa, media_id, f"{order_id}.pdf", "Your pro-forma invoice")
+    except Exception:
+        app.logger.exception("WhatsApp send by media_id failed; falling back to link")
+        base = os.getenv("RENDER_EXTERNAL_URL", (request.url_root or "").rstrip("/"))
+        pdf_url = f"{base}/invoice/{order_id}.pdf"
+        try:
+            send_document(from_wa, pdf_url, f"{order_id}.pdf", "Your pro-forma invoice")
+        except Exception:
+            app.logger.exception("WhatsApp link send failed; falling back to text")
+            send_text(from_wa, "Here is your pro-forma invoice: " + pdf_url)
+    else:
+    base = os.getenv("RENDER_EXTERNAL_URL", (request.url_root or "").rstrip("/"))
+    pdf_url = f"{base}/invoice/{order_id}.pdf"
+    try:
+        send_document(from_wa, pdf_url, f"{order_id}.pdf", "Your pro-forma invoice")
+    except Exception:
+        app.logger.exception("WhatsApp link send failed; falling back to text")
+        send_text(from_wa, "Here is your pro-forma invoice: " + pdf_url)
+  
         pdf_url = (request.url_root or "").rstrip("/") + f"/invoice/{order_id}.pdf"
         try:
             send_document(from_wa, pdf_url, f"{order_id}.pdf", "Your pro-forma invoice")
@@ -481,47 +543,47 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 send_text(from_wa, "Here is your pro-forma invoice: " + pdf_url)
             except Exception:
                 app.logger.exception("Fallback text send failed")
-
+  
         SESS[from_wa] = {"state": None, "page": 1}
         return {"text": "✅ Order confirmed! I’ve sent your pro-forma invoice. Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
-
+  
     # County guess (stateless)
     c_guess = guess_county(low)
     if c_guess:
         eta = delivery_eta_text(c_guess)
         sess["last_county"] = c_guess.title(); sess["last_eta"] = eta; sess["state"] = "await_name"
         return {"text": f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nGreat! Please share your *full name* for the pro-forma."}
-
+  
     # Fallback
     return {"text":"Got it! Tap *Prices/Capacities*, *Delivery Terms*, *Incubator issues*, or *Talk to an Agent*.", "buttons": MENU_BUTTONS}
-
-# -------------------------
-# Routes
-# -------------------------
-@app.get("/")
-def index():
+  
+  # -------------------------
+  # Routes
+  # -------------------------
+  @app.get("/")
+  def index():
     return (
         "<h2>Neochicks WhatsApp Bot (DB-free)</h2>"
         "<p>Status: <a href='/health'>/health</a></p>"
         "<p>Webhook: /webhook (Meta will call this)</p>"
         "<p>Invoice sample: /invoice/&lt;ORDER_ID&gt;.pdf (after confirmation)</p>"
     ), 200
-
-@app.get("/health")
-def health():
+  
+  @app.get("/health")
+  def health():
     return jsonify({"status":"ok"})
-
-@app.get("/webhook")
-def verify():
+  
+  @app.get("/webhook")
+  def verify():
     mode = request.args.get("hub.mode")
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
     if mode == "subscribe" and token == VERIFY_TOKEN:
         return challenge, 200
     return "forbidden", 403
-
-@app.post("/webhook")
-def webhook():
+  
+  @app.post("/webhook")
+  def webhook():
     data = request.get_json(force=True, silent=True) or {}
     try:
         entry   = (data.get("entry") or [{}])[0]
@@ -530,7 +592,7 @@ def webhook():
         messages = value.get("messages", [])
         if not messages:
             return "no message", 200
-
+  
         msg = messages[0]; from_wa = msg.get("from"); text = ""
         if msg.get("type") == "text":
             text = msg.get("text", {}).get("body", "")
@@ -540,7 +602,7 @@ def webhook():
                 text = inter.get("button_reply", {}).get("title", "")
             elif inter.get("type") == "list_reply":
                 text = inter.get("list_reply", {}).get("title", "")
-
+  
         reply = brain_reply(text, from_wa)
         if reply.get("text"):
             try:
@@ -561,9 +623,9 @@ def webhook():
     except Exception:
         app.logger.exception("Webhook error")
         return "error", 200
-
-@app.get("/invoice/<order_id>.pdf")
-def invoice(order_id):
+  
+  @app.get("/invoice/<order_id>.pdf")
+  def invoice(order_id):
     tmp_path = f"/tmp/{order_id}.pdf"
     try:
         if os.path.exists(tmp_path):
@@ -571,23 +633,23 @@ def invoice(order_id):
             return send_file(tmp_path, mimetype="application/pdf", as_attachment=False, download_name=f"{order_id}.pdf")
     except Exception:
         app.logger.exception("Error reading cached invoice file")
-
+  
     order = INVOICES.get(order_id)
     if not order:
         app.logger.info("Invoice not found: %s", order_id)
         abort(404)
-
+  
     pdf_bytes = generate_invoice_pdf(order)
     return send_file(io.BytesIO(pdf_bytes), mimetype="application/pdf", as_attachment=False, download_name=f"{order_id}.pdf")
-
-@app.get("/testmail")
-def testmail():
+  
+  @app.get("/testmail")
+  def testmail():
     ok = send_email("Neochicks Test Email", "It works! ✅")
     return ("OK" if ok else "FAIL"), 200
-
-# -------------------------
-# Run
-# -------------------------
-if __name__ == "__main__":
+  
+  # -------------------------
+  # Run
+  # -------------------------
+  if __name__ == "__main__":
     # For local testing only; in production use gunicorn with WEB_CONCURRENCY=1
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 3000)))
