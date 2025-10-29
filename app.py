@@ -514,9 +514,9 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
   # WhatsApp: send document directly by media upload
   media_id = upload_media_pdf(pdf_bytes, f"{order_id}.pdf")
   if media_id:
-  try:
+    try:
       send_document_by_id(from_wa, media_id, f"{order_id}.pdf", "Your pro-forma invoice")
-  except Exception:
+      except Exception:
       app.logger.exception("WhatsApp send by media_id failed; falling back to link")
       base = os.getenv("RENDER_EXTERNAL_URL", (request.url_root or "").rstrip("/"))
       pdf_url = f"{base}/invoice/{order_id}.pdf"
