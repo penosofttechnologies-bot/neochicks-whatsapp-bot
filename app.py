@@ -1,4 +1,4 @@
-  """
+"""
   Neochicks WhatsApp Bot (DB-free, cleaned + full catalog)
   
   - Removes DB reads/writes.
