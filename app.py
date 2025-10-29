@@ -170,36 +170,53 @@ def find_by_capacity(cap: int):
 # -------------------------
 # PDF generation
 # -------------------------
+def _latin1(s: str) -> str:
+    # Ensure text is safe for FPDF core fonts (latin-1 only)
+    return (s or "").encode("latin-1", "replace").decode("latin-1")
+
 def generate_invoice_pdf(order: dict) -> bytes:
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, BUSINESS_NAME, ln=1)
+    pdf.cell(0, 10, _latin1(BUSINESS_NAME), ln=1)
+
     pdf.set_font("Arial", "", 12)
-    pdf.cell(0, 8, f"Pro-Forma Invoice  •  {order['id']}", ln=1)
+    # Replace the bullet '•' with ASCII hyphen or middle dot (· is latin-1 U+00B7)
+    title_line = f"Pro-Forma Invoice - {order['id']}"
+    pdf.cell(0, 8, _latin1(title_line), ln=1)
+
     pdf.ln(2)
-    pdf.cell(0, 8, f"Date (UTC): {order['created_at_utc']}", ln=1)
+    pdf.cell(0, 8, _latin1(f"Date (UTC): {order['created_at_utc']}"), ln=1)
     pdf.ln(4)
+
+    # Customer details
     pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "Customer", ln=1)
+    pdf.cell(0, 8, _latin1("Customer"), ln=1)
+
     pdf.set_font("Arial", "", 12)
-    pdf.cell(0, 7, f"Name: {order.get('customer_name','')}", ln=1)
-    pdf.cell(0, 7, f"Phone: {order.get('customer_phone','')}", ln=1)
-    pdf.cell(0, 7, f"County: {order.get('county','')}", ln=1)
+    pdf.cell(0, 7, _latin1(f"Name: {order.get('customer_name','')}"), ln=1)
+    pdf.cell(0, 7, _latin1(f"Phone: {order.get('customer_phone','')}"), ln=1)
+    pdf.cell(0, 7, _latin1(f"County: {order.get('county','')}"), ln=1)
+
     pdf.ln(2)
     pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "Item", ln=1)
+    pdf.cell(0, 8, _latin1("Item"), ln=1)
+
     pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 7, f"{order.get('model','')}  ({order.get('capacity','')} eggs)")
-    pdf.cell(0, 7, f"Price: {ksh(order.get('price',0))}", ln=1)
-    pdf.cell(0, 7, f"Delivery: {order.get('eta','24 hours')}  |  {PAYMENT_NOTE}", ln=1)
+    pdf.multi_cell(0, 7, _latin1(f"{order.get('model','')}  ({order.get('capacity','')} eggs)"))
+    pdf.cell(0, 7, _latin1(f"Price: {ksh(order.get('price',0))}"), ln=1)
+    pdf.cell(0, 7, _latin1(f"Delivery: {order.get('eta','24 hours')}  |  {PAYMENT_NOTE}"), ln=1)
+
     pdf.ln(6)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 6, "Support: Setup guidance + 12-month warranty.")
+    pdf.multi_cell(0, 6, _latin1("Support: Setup guidance + 12-month warranty."))
+
     pdf.ln(8)
     pdf.set_font("Arial", "I", 10)
-    pdf.multi_cell(0, 5, "This is a pro-forma invoice. For assistance call " + CALL_LINE + ".")
+    pdf.multi_cell(0, 5, _latin1("This is a pro-forma invoice. For assistance call " + CALL_LINE + "."))
+
     return pdf.output(dest="S").encode("latin1")
+
 
 # -------------------------
 # Email (SendGrid)
