@@ -412,7 +412,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     # DELIVERY → COUNTY → NAME → PHONE → PRO-FORMA
     if ("delivery" in low) or ("deliver" in low) or ("delivery terms" in low):
         sess["state"] = "await_county"
-        return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. " + PAYMENT_NOTE + ".\nWhich *county* are you in?"}
+        return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. " + PAYMENT_NOTE }
 
     if sess.get("state") == "await_county":
         county = re.sub(r"[^a-z ]", "", low).strip()
