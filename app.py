@@ -176,44 +176,97 @@ def _latin1(s: str) -> str:
 
 def generate_invoice_pdf(order: dict) -> bytes:
     pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
+
+    # Margins & header
+    pdf.set_margins(15, 15, 15)
     pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, _latin1(BUSINESS_NAME), ln=1)
+    pdf.set_font("Arial", "", 11)
+    pdf.cell(0, 6, _latin1("Pro-Forma Invoice"), ln=1)
+    pdf.ln(1)
 
-    pdf.set_font("Arial", "", 12)
-    # Replace the bullet '•' with ASCII hyphen or middle dot (· is latin-1 U+00B7)
-    title_line = f"Pro-Forma Invoice - {order['id']}"
-    pdf.cell(0, 8, _latin1(title_line), ln=1)
-
-    pdf.ln(2)
-    pdf.cell(0, 8, _latin1(f"Date (UTC): {order['created_at_utc']}"), ln=1)
+    # Invoice meta
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 6, _latin1(f"Invoice No: {order.get('id','')}"), ln=1)
+    pdf.cell(0, 6, _latin1(f"Date (UTC): {order.get('created_at_utc','')}"), ln=1)
     pdf.ln(4)
 
-    # Customer details
+    # Horizontal rule
+    pdf.set_draw_color(180, 180, 180)
+    x1, y = 15, pdf.get_y()
+    pdf.line(x1, y, 195, y)
+    pdf.ln(4)
+
+    # Bill To
     pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, _latin1("Customer"), ln=1)
-
-    pdf.set_font("Arial", "", 12)
-    pdf.cell(0, 7, _latin1(f"Name: {order.get('customer_name','')}"), ln=1)
-    pdf.cell(0, 7, _latin1(f"Phone: {order.get('customer_phone','')}"), ln=1)
-    pdf.cell(0, 7, _latin1(f"County: {order.get('county','')}"), ln=1)
-
-    pdf.ln(2)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, _latin1("Item"), ln=1)
-
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 7, _latin1(f"{order.get('model','')}  ({order.get('capacity','')} eggs)"))
-    pdf.cell(0, 7, _latin1(f"Price: {ksh(order.get('price',0))}"), ln=1)
-    pdf.cell(0, 7, _latin1(f"Delivery: {order.get('eta','24 hours')}  |  {PAYMENT_NOTE}"), ln=1)
-
-    pdf.ln(6)
+    pdf.cell(0, 8, _latin1("Bill To"), ln=1)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 6, _latin1("Support: Setup guidance + 12-month warranty."))
+    pdf.cell(0, 6, _latin1(f"Name:  {order.get('customer_name','')}"), ln=1)
+    pdf.cell(0, 6, _latin1(f"Phone: {order.get('customer_phone','')}"), ln=1)
+    pdf.cell(0, 6, _latin1(f"County: {order.get('county','')}"), ln=1)
+    pdf.ln(6)
 
-    pdf.ln(8)
-    pdf.set_font("Arial", "I", 10)
-    pdf.multi_cell(0, 5, _latin1("This is a pro-forma invoice. For assistance call " + CALL_LINE + "."))
+    # Items table header
+    pdf.set_font("Arial", "B", 11)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(100, 8, _latin1("Description"), border=1, ln=0, align="L", fill=True)
+    pdf.cell(25,  8, _latin1("Qty"),         border=1, ln=0, align="C", fill=True)
+    pdf.cell(30,  8, _latin1("Unit Price"),  border=1, ln=0, align="R", fill=True)
+    pdf.cell(30,  8, _latin1("Amount"),      border=1, ln=1, align="R", fill=True)
+
+    # Single line item (the incubator)
+    model   = order.get("model", "")
+    cap     = order.get("capacity", "")
+    price   = int(order.get("price", 0) or 0)
+    qty     = 1
+    amount  = price * qty
+    desc    = f"{model} ({cap} eggs) — Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
+
+    pdf.set_font("Arial", "", 11)
+    # Description can wrap -> use multi_cell trick in a fixed-height row
+    start_x = pdf.get_x()
+    start_y = pdf.get_y()
+    line_height = 8
+
+    # Description cell (may wrap)
+    pdf.multi_cell(100, line_height, _latin1(desc), border=1, align="L")
+    # Compute height used and align the other cells to match
+    end_y = pdf.get_y()
+    row_h = end_y - start_y
+
+    # Move back to the right for the remaining cells
+    pdf.set_xy(start_x + 100, start_y)
+    pdf.cell(25,  row_h, _latin1(str(qty)),           border=1, align="C")
+    pdf.cell(30,  row_h, _latin1(ksh(price)),         border=1, align="R")
+    pdf.cell(30,  row_h, _latin1(ksh(amount)),        border=1, align="R")
+    pdf.ln(6)
+
+    # Subtotal / Total (simple, all same here)
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(155, 8, _latin1("Subtotal"), border=0, ln=0, align="R")
+    pdf.cell(30,  8, _latin1(ksh(amount)), border=1, ln=1, align="R")
+
+    pdf.cell(155, 8, _latin1("Total"),    border=0, ln=0, align="R")
+    pdf.cell(30,  8, _latin1(ksh(amount)), border=1, ln=1, align="R")
+    pdf.ln(6)
+
+    # Notes / Terms
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 7, _latin1("Notes"), ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.multi_cell(0, 6, _latin1(
+        "1) Prices exclude optional solar packages.\n"
+        "2) Pay on delivery. Please have a valid phone reachable by our rider/driver.\n"
+        "3) Includes setup guidance and 12-month warranty.\n"
+        f"4) For assistance call {CALL_LINE}."
+    ))
+    pdf.ln(4)
+
+    # Footer / signature line
+    pdf.set_font("Arial", "I", 9)
+    pdf.cell(0, 6, _latin1("This is a pro-forma invoice. Not a tax invoice."), ln=1)
 
     return pdf.output(dest="S").encode("latin1")
 
@@ -384,6 +437,29 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                          "The leading incubators supplier in Kenya and East Africa.\n"
                          "Click one of the options below and I will answer you:\n\n"
                          "☎️ " + CALL_LINE) + after_note, "buttons": MENU_BUTTONS}
+        # AGENT (explicit, matches button title + free text variants)
+    if any(kw in low for kw in {
+        "talk to an agent", "speak to an agent", "agent", "human", "representative",
+        "talk to a rep", "customer care", "customer support"
+    }):
+        # clear transient flow and hand off
+        SESS[from_wa] = {"state": None, "page": 1}
+        return {"text": "👩🏽‍💼 Connecting you to a Neochicks rep… You can also call " + CALL_LINE + "."}
+        # INCUBATOR ISSUES (explicit match for the button title + heuristics)
+    if ("incubator issues" in low) or any(k in low for k in [
+        "troubleshoot", "hatch rate", "problem", "fault", "issue", "issues", "help with incubator"
+    ]):
+        sess["state"] = None
+        return {"text": (
+            "🛠️ Quick checks for better hatching:\n"
+            "1) Temperature 37.8°C (±0.2)\n"
+            "2) Humidity 55–60% set / ~65% at hatch\n"
+            "3) Turning 3–5×/day (auto OK)\n"
+            "4) Candle day 7 & 14; remove clears\n"
+            "5) Ventilation okay (no drafts)\n"
+            "6) Disinfect after each hatch\n\n"
+            f"For urgent help, call {CALL_LINE}."
+        )}
 
     # PRICES
     if any(k in low for k in ["capacities", "capacity", "capacities with prices", "prices", "price", "bei", "gharama"]):
