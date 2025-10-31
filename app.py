@@ -332,7 +332,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.ln(6)
 
     # Footer (simple, light gray)
-    pdf.set_y(-18)
+    pdf.set_y(-14)
     pdf.set_font("Arial", "I", 9)
     pdf.set_text_color(120, 120, 120)
     pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
