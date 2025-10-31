@@ -49,6 +49,8 @@ AFTER_HOURS_NOTE = "We are currently off till early morning."
 
 INVOICE_TTL_MIN = int(os.getenv("INVOICE_TTL_MIN", "1440"))  # minutes
 EXTERNAL_BASE   = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
+LOGO_URL = os.getenv("LOGO_URL", "")           # optional
+SIGNATURE_URL = os.getenv("SIGNATURE_URL", "") # optional
 
 # -------------------------
 # In-memory store (temporary)
