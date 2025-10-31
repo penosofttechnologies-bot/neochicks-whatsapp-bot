@@ -196,7 +196,7 @@ def _fetch_to_tmp(url: str, basename: str) -> str | None:
 def _latin1(s: str) -> str:
     return (s or "").encode("latin-1", "replace").decode("latin-1")
     def _draw_item_row(pdf, desc, qty, unit_price, amount,
-                   desc_w, qty_w, unit_w, amt_w, line_h=8):
+                       desc_w, qty_w, unit_w, amt_w, line_h=8):
     """
     Draws a table row where the first cell (Description) can wrap.
     Ensures the entire row height matches the tallest wrapped cell
