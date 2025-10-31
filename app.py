@@ -170,34 +170,69 @@ def find_by_capacity(cap: int):
 # -------------------------
 # PDF generation
 # -------------------------
+def _fetch_to_tmp(url: str, basename: str) -> str | None:
+    """Download a small image to /tmp and return its path (or None on failure)."""
+    if not url:
+        return None
+    try:
+        ext = ".png"
+        if "." in url.split("/")[-1]:
+            ext = "." + url.split("/")[-1].split(".")[-1].lower()
+            if len(ext) > 5:  # overly long or querystringy -> default to png
+                ext = ".png"
+        path = f"/tmp/{basename}{ext}"
+        if not os.path.exists(path):
+            r = requests.get(url, timeout=20)
+            r.raise_for_status()
+            with open(path, "wb") as f:
+                f.write(r.content)
+        return path
+    except Exception:
+        app.logger.exception("Failed to fetch image: %s", url)
+        return None
+
 def _latin1(s: str) -> str:
-    # Ensure text is safe for FPDF core fonts (latin-1 only)
     return (s or "").encode("latin-1", "replace").decode("latin-1")
 
 def generate_invoice_pdf(order: dict) -> bytes:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-
-    # Margins & header
     pdf.set_margins(15, 15, 15)
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, _latin1(BUSINESS_NAME), ln=1)
+
+    # --- Header band ---
+    pdf.set_fill_color(240, 248, 240)  # very light green
+    pdf.rect(0, 0, 210, 25, "F")
+
+    # Try to place logo (left)
+    logo_path = _fetch_to_tmp(LOGO_URL, "neochicks_logo") if LOGO_URL else None
+    if logo_path:
+        try:
+            pdf.image(logo_path, x=15, y=6, w=28)
+        except Exception:
+            app.logger.exception("PDF logo draw failed")
+
+    # Business name + title (right/top)
+    pdf.set_xy(15 + (30 if logo_path else 0) + 2, 7)
+    pdf.set_font("Arial", "B", 15)
+    pdf.cell(0, 7, _latin1(BUSINESS_NAME), ln=1)
+
+    pdf.set_x(15 + (30 if logo_path else 0) + 2)
     pdf.set_font("Arial", "", 11)
     pdf.cell(0, 6, _latin1("Pro-Forma Invoice"), ln=1)
-    pdf.ln(1)
 
-    # Invoice meta
+    # Meta line under header
+    pdf.ln(2)
     pdf.set_font("Arial", "", 10)
     pdf.cell(0, 6, _latin1(f"Invoice No: {order.get('id','')}"), ln=1)
     pdf.cell(0, 6, _latin1(f"Date (UTC): {order.get('created_at_utc','')}"), ln=1)
-    pdf.ln(4)
+    pdf.ln(3)
 
-    # Horizontal rule
-    pdf.set_draw_color(180, 180, 180)
+    # Divider
+    pdf.set_draw_color(200, 200, 200)
     x1, y = 15, pdf.get_y()
     pdf.line(x1, y, 195, y)
-    pdf.ln(4)
+    pdf.ln(5)
 
     # Bill To
     pdf.set_font("Arial", "B", 12)
@@ -210,13 +245,13 @@ def generate_invoice_pdf(order: dict) -> bytes:
 
     # Items table header
     pdf.set_font("Arial", "B", 11)
-    pdf.set_fill_color(240, 240, 240)
+    pdf.set_fill_color(245, 245, 245)
     pdf.cell(100, 8, _latin1("Description"), border=1, ln=0, align="L", fill=True)
     pdf.cell(25,  8, _latin1("Qty"),         border=1, ln=0, align="C", fill=True)
     pdf.cell(30,  8, _latin1("Unit Price"),  border=1, ln=0, align="R", fill=True)
     pdf.cell(30,  8, _latin1("Amount"),      border=1, ln=1, align="R", fill=True)
 
-    # Single line item (the incubator)
+    # Single line item
     model   = order.get("model", "")
     cap     = order.get("capacity", "")
     price   = int(order.get("price", 0) or 0)
@@ -225,50 +260,76 @@ def generate_invoice_pdf(order: dict) -> bytes:
     desc    = f"{model} ({cap} eggs) — Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
 
     pdf.set_font("Arial", "", 11)
-    # Description can wrap -> use multi_cell trick in a fixed-height row
     start_x = pdf.get_x()
     start_y = pdf.get_y()
-    line_height = 8
+    line_h  = 8
 
-    # Description cell (may wrap)
-    pdf.multi_cell(100, line_height, _latin1(desc), border=1, align="L")
-    # Compute height used and align the other cells to match
+    pdf.multi_cell(100, line_h, _latin1(desc), border=1, align="L")
     end_y = pdf.get_y()
-    row_h = end_y - start_y
-
-    # Move back to the right for the remaining cells
+    row_h = max(line_h, end_y - start_y)
     pdf.set_xy(start_x + 100, start_y)
-    pdf.cell(25,  row_h, _latin1(str(qty)),           border=1, align="C")
-    pdf.cell(30,  row_h, _latin1(ksh(price)),         border=1, align="R")
-    pdf.cell(30,  row_h, _latin1(ksh(amount)),        border=1, align="R")
+    pdf.cell(25,  row_h, _latin1(str(qty)),    border=1, align="C")
+    pdf.cell(30,  row_h, _latin1(ksh(price)),  border=1, align="R")
+    pdf.cell(30,  row_h, _latin1(ksh(amount)), border=1, align="R")
     pdf.ln(6)
 
-    # Subtotal / Total (simple, all same here)
+    # Totals
     pdf.set_font("Arial", "B", 11)
     pdf.cell(155, 8, _latin1("Subtotal"), border=0, ln=0, align="R")
     pdf.cell(30,  8, _latin1(ksh(amount)), border=1, ln=1, align="R")
 
     pdf.cell(155, 8, _latin1("Total"),    border=0, ln=0, align="R")
     pdf.cell(30,  8, _latin1(ksh(amount)), border=1, ln=1, align="R")
-    pdf.ln(6)
+    pdf.ln(8)
 
-    # Notes / Terms
+    # Notes
     pdf.set_font("Arial", "B", 11)
     pdf.cell(0, 7, _latin1("Notes"), ln=1)
     pdf.set_font("Arial", "", 10)
     pdf.multi_cell(0, 6, _latin1(
         "1) Prices exclude optional solar packages.\n"
-        "2) Pay on delivery. Please have a valid phone reachable by our rider/driver.\n"
+        "2) Pay on delivery. Please keep your phone on for delivery coordination.\n"
         "3) Includes setup guidance and 12-month warranty.\n"
         f"4) For assistance call {CALL_LINE}."
     ))
-    pdf.ln(4)
+    pdf.ln(10)
 
-    # Footer / signature line
+    # Signature / Stamp block
+    sig_w = 45
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 7, _latin1("Authorized Signature / Stamp"), ln=1)
+    pdf.set_font("Arial", "", 10)
+
+    # Signature image if provided
+    sig_path = _fetch_to_tmp(SIGNATURE_URL, "neochicks_signature") if SIGNATURE_URL else None
+    if sig_path:
+        try:
+            x_sig = pdf.get_x()
+            y_sig = pdf.get_y()
+            pdf.image(sig_path, x=x_sig, y=y_sig, w=sig_w)
+            pdf.ln(sig_w * 0.6 + 2)
+        except Exception:
+            app.logger.exception("PDF signature draw failed")
+            pdf.ln(14)
+    else:
+        pdf.ln(14)
+
+    # Signature line
+    cur_x = pdf.get_x()
+    cur_y = pdf.get_y()
+    pdf.set_draw_color(160, 160, 160)
+    pdf.line(cur_x, cur_y, cur_x + 60, cur_y)
+    pdf.ln(6)
+
+    # Footer (simple, light gray)
+    pdf.set_y(-18)
     pdf.set_font("Arial", "I", 9)
-    pdf.cell(0, 6, _latin1("This is a pro-forma invoice. Not a tax invoice."), ln=1)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
+    pdf.set_text_color(0, 0, 0)  # reset
 
     return pdf.output(dest="S").encode("latin1")
+
 
 
 # -------------------------
