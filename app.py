@@ -245,13 +245,17 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.cell(0, 6, _latin1(f"County: {order.get('county','')}"), ln=1)
     pdf.ln(6)
 
-    # Items table header
+        # --- Items table (auto-fit to content width) ---
+    content_w = pdf.w - pdf.l_margin - pdf.r_margin  # 180 on A4 with 15mm margins
+    desc_w, qty_w, unit_w, amt_w = 95, 25, 30, 30     # sum = 180 (fixes overflow)
+
+    # Header
     pdf.set_font("Arial", "B", 11)
     pdf.set_fill_color(245, 245, 245)
-    pdf.cell(100, 8, _latin1("Description"), border=1, ln=0, align="L", fill=True)
-    pdf.cell(25,  8, _latin1("Qty"),         border=1, ln=0, align="C", fill=True)
-    pdf.cell(30,  8, _latin1("Unit Price"),  border=1, ln=0, align="R", fill=True)
-    pdf.cell(30,  8, _latin1("Amount"),      border=1, ln=1, align="R", fill=True)
+    pdf.cell(desc_w, 8, _latin1("Description"), border=1, ln=0, align="L", fill=True)
+    pdf.cell(qty_w,  8, _latin1("Qty"),         border=1, ln=0, align="C", fill=True)
+    pdf.cell(unit_w, 8, _latin1("Unit Price"),  border=1, ln=0, align="R", fill=True)
+    pdf.cell(amt_w,  8, _latin1("Amount"),      border=1, ln=1, align="R", fill=True)
 
     # Single line item
     model   = order.get("model", "")
@@ -266,22 +270,28 @@ def generate_invoice_pdf(order: dict) -> bytes:
     start_y = pdf.get_y()
     line_h  = 8
 
-    pdf.multi_cell(100, line_h, _latin1(desc), border=1, align="L")
+    # Description cell (wraps)
+    pdf.multi_cell(desc_w, line_h, _latin1(desc), border=1, align="L")
     end_y = pdf.get_y()
     row_h = max(line_h, end_y - start_y)
-    pdf.set_xy(start_x + 100, start_y)
-    pdf.cell(25,  row_h, _latin1(str(qty)),    border=1, align="C")
-    pdf.cell(30,  row_h, _latin1(ksh(price)),  border=1, align="R")
-    pdf.cell(30,  row_h, _latin1(ksh(amount)), border=1, align="R")
+
+    # Remaining cells aligned to same row height
+    pdf.set_xy(start_x + desc_w, start_y)
+    pdf.cell(qty_w,  row_h, _latin1(str(qty)),   border=1, align="C")
+    pdf.cell(unit_w, row_h, _latin1(ksh(price)), border=1, align="R")
+    pdf.cell(amt_w,  row_h, _latin1(ksh(amount)),border=1, align="R")
     pdf.ln(6)
 
-    # Totals
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(155, 8, _latin1("Subtotal"), border=0, ln=0, align="R")
-    pdf.cell(30,  8, _latin1(ksh(amount)), border=1, ln=1, align="R")
+    # --- Totals (each on its own full row) ---
+    def totals_row(label: str, value: str, bold=False):
+        pdf.set_x(pdf.l_margin)  # start at left margin
+        pdf.set_font("Arial", "B" if bold else "", 11)
+        # Label cell spans desc+qty+unit; amount sits in amount column
+        pdf.cell(desc_w + qty_w + unit_w, 8, _latin1(label), border=0, ln=0, align="R")
+        pdf.cell(amt_w, 8, _latin1(value), border=1, ln=1, align="R")
 
-    pdf.cell(155, 8, _latin1("Total"),    border=0, ln=0, align="R")
-    pdf.cell(30,  8, _latin1(ksh(amount)), border=1, ln=1, align="R")
+    totals_row("Subtotal", ksh(amount), bold=False)
+    totals_row("Total",    ksh(amount), bold=True)
     pdf.ln(8)
 
     # Notes
@@ -289,10 +299,8 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.cell(0, 7, _latin1("Notes"), ln=1)
     pdf.set_font("Arial", "", 10)
     pdf.multi_cell(0, 6, _latin1(
-        "1) Prices exclude optional solar packages.\n"
-        "2) Pay on delivery. Please keep your phone on for delivery coordination.\n"
-        "3) Includes setup guidance and 12-month warranty.\n"
-        f"4) For assistance call {CALL_LINE}."
+         "1) Pay on delivery. Please keep your phone on for delivery coordination.\n"      
+        f"2) For assistance call {CALL_LINE}."
     ))
     pdf.ln(10)
 
