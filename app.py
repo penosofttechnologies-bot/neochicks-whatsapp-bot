@@ -195,6 +195,48 @@ def _fetch_to_tmp(url: str, basename: str) -> str | None:
 
 def _latin1(s: str) -> str:
     return (s or "").encode("latin-1", "replace").decode("latin-1")
+    def _draw_item_row(pdf, desc, qty, unit_price, amount,
+                   desc_w, qty_w, unit_w, amt_w, line_h=8):
+    """
+    Draws a table row where the first cell (Description) can wrap.
+    Ensures the entire row height matches the tallest wrapped cell
+    and moves the cursor to the start of the next row cleanly.
+    """
+    # Starting positions
+    x0 = pdf.get_x()
+    y0 = pdf.get_y()
+
+    # 1) Description (can wrap). This advances Y downward.
+    pdf.multi_cell(desc_w, line_h, _latin1(desc), border=1, align="L")
+
+    # Height used by description
+    y_after_desc = pdf.get_y()
+    row_bottom = max(y0 + line_h, y_after_desc)  # minimum one line high
+
+    # 2) Other cells must start back at the top of the row (y0)
+    pdf.set_xy(x0 + desc_w, y0)
+    pdf.cell(qty_w,  row_bottom - y0, _latin1(str(qty)),   border=1, align="C")
+    pdf.cell(unit_w, row_bottom - y0, _latin1(unit_price), border=1, align="R")
+    pdf.cell(amt_w,  row_bottom - y0, _latin1(amount),     border=1, align="R")
+
+    # 3) Move to the beginning of the next line (left margin), at row_bottom
+    pdf.set_xy(pdf.l_margin, row_bottom)
+    pdf.ln(6)  # extra spacing after the row
+
+def _eat_from_utc_iso(iso_str: str) -> str:
+    """
+    Convert an ISO UTC string like '2025-10-29T07:32:39Z' to EAT (UTC+3)
+    and format as 'YYYY-MM-DD HH:MM'.
+    """
+    if not iso_str:
+        return ""
+    s = iso_str.strip().replace("Z", "")
+    try:
+        dt_utc = datetime.fromisoformat(s)
+    except Exception:
+        return iso_str  # fallback, show original if parsing fails
+    dt_eat = dt_utc + timedelta(hours=3)
+    return dt_eat.strftime("%Y-%m-%d")
 
 def generate_invoice_pdf(order: dict) -> bytes:
     pdf = FPDF()
@@ -226,8 +268,10 @@ def generate_invoice_pdf(order: dict) -> bytes:
     # Meta line under header
     pdf.ln(2)
     pdf.set_font("Arial", "", 10)
+    eat_display = _eat_from_utc_iso(order.get('created_at_utc',''))
     pdf.cell(0, 6, _latin1(f"Invoice No: {order.get('id','')}"), ln=1)
-    pdf.cell(0, 6, _latin1(f"Date (UTC): {order.get('created_at_utc','')}"), ln=1)
+    pdf.cell(0, 6, _latin1(f"Date (EAT): {eat_display}"), ln=1)
+
     pdf.ln(3)
 
     # Divider
@@ -245,9 +289,9 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.cell(0, 6, _latin1(f"County: {order.get('county','')}"), ln=1)
     pdf.ln(6)
 
-        # --- Items table (auto-fit to content width) ---
-    content_w = pdf.w - pdf.l_margin - pdf.r_margin  # 180 on A4 with 15mm margins
-    desc_w, qty_w, unit_w, amt_w = 95, 25, 30, 30     # sum = 180 (fixes overflow)
+     # --- Items table (fit to content width exactly) ---
+    content_w = pdf.w - pdf.l_margin - pdf.r_margin  # usually 180 on A4 with 15mm margins
+    desc_w, qty_w, unit_w, amt_w = 95, 25, 30, 30     # sum exactly = content_w (95+25+30+30 = 180)
 
     # Header
     pdf.set_font("Arial", "B", 11)
@@ -266,33 +310,28 @@ def generate_invoice_pdf(order: dict) -> bytes:
     desc    = f"{model} ({cap} eggs) — Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
 
     pdf.set_font("Arial", "", 11)
-    start_x = pdf.get_x()
-    start_y = pdf.get_y()
-    line_h  = 8
-
-    # Description cell (wraps)
-    pdf.multi_cell(desc_w, line_h, _latin1(desc), border=1, align="L")
-    end_y = pdf.get_y()
-    row_h = max(line_h, end_y - start_y)
-
-    # Remaining cells aligned to same row height
-    pdf.set_xy(start_x + desc_w, start_y)
-    pdf.cell(qty_w,  row_h, _latin1(str(qty)),   border=1, align="C")
-    pdf.cell(unit_w, row_h, _latin1(ksh(price)), border=1, align="R")
-    pdf.cell(amt_w,  row_h, _latin1(ksh(amount)),border=1, align="R")
-    pdf.ln(6)
+    _draw_item_row(
+        pdf,
+        desc=desc,
+        qty=qty,
+        unit_price=ksh(price),
+        amount=ksh(amount),
+        desc_w=desc_w, qty_w=qty_w, unit_w=unit_w, amt_w=amt_w,
+        line_h=8
+    )
 
     # --- Totals (each on its own full row) ---
     def totals_row(label: str, value: str, bold=False):
         pdf.set_x(pdf.l_margin)  # start at left margin
         pdf.set_font("Arial", "B" if bold else "", 11)
-        # Label cell spans desc+qty+unit; amount sits in amount column
+        # Label spans desc+qty+unit; value sits in amount column with a border
         pdf.cell(desc_w + qty_w + unit_w, 8, _latin1(label), border=0, ln=0, align="R")
         pdf.cell(amt_w, 8, _latin1(value), border=1, ln=1, align="R")
 
     totals_row("Subtotal", ksh(amount), bold=False)
     totals_row("Total",    ksh(amount), bold=True)
     pdf.ln(8)
+
 
     # Notes
     pdf.set_font("Arial", "B", 11)
@@ -332,7 +371,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.ln(6)
 
     # Footer (simple, light gray)
-    pdf.set_y(-14)
+    pdf.set_y(-18)
     pdf.set_font("Arial", "I", 9)
     pdf.set_text_color(120, 120, 120)
     pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
