@@ -330,7 +330,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
 
     # ASCII-safe hyphen to avoid '?' with core fonts; keep your final PAYMENT_NOTE
     desc = (
-        f"{model_full} | FREE Delivery ({cap} eggs) \n"
+        f"{model_full} | FREE Delivery \n"
         f"- Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
     )
 
