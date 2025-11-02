@@ -333,75 +333,72 @@ def generate_invoice_pdf(order: dict) -> bytes:
     totals_row("Total",    ksh(amount), bold=True)
     pdf.ln(8)
 
-
-  # --- Notes (tightened spacing to save vertical space) ---
-pdf.set_font("Arial", "B", 11)
-pdf.cell(0, 7, _latin1("Notes"), ln=1)
-pdf.set_font("Arial", "", 10)
-pdf.multi_cell(0, 6, _latin1(
+    # --- Notes (tightened spacing to save vertical space) ---
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 7, _latin1("Notes"), ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.multi_cell(0, 6, _latin1(
     "1) Prices exclude optional solar packages.\n"
     "2) Pay on delivery. Please keep your phone on for delivery coordination.\n"
     "3) Includes setup guidance and 12-month warranty.\n"
     f"4) For assistance call {CALL_LINE}."
-))
-pdf.ln(4)  # keep small
-
-# --- Signature / Stamp block with dynamic height clamp ---
-FOOTER_H = 16                 # footer height we will reserve
-GAP_BEFORE_FOOTER = 4         # breathing space above footer
-min_sig_h = 10                # minimal signature box height
-max_sig_h = 22                # desired signature box height (keep small to stay 1-page)
-
-# Compute how much space is left before we must place the footer
-page_h = pdf.h
-footer_top = page_h - pdf.b_margin - FOOTER_H
-cur_y = pdf.get_y()
-
-# If we're already too low, nudge up a bit to avoid triggering an auto page break
-if cur_y > footer_top - min_sig_h:
+    ))
+    pdf.ln(4)  # keep small
+    
+    # --- Signature / Stamp block with dynamic height clamp ---
+    FOOTER_H = 16                 # footer height we will reserve
+    GAP_BEFORE_FOOTER = 4         # breathing space above footer
+    min_sig_h = 10                # minimal signature box height
+    max_sig_h = 22                # desired signature box height (keep small to stay 1-page)
+    
+    # Compute how much space is left before we must place the footer
+    page_h = pdf.h
+    footer_top = page_h - pdf.b_margin - FOOTER_H
+    cur_y = pdf.get_y()
+    
+    # If we're already too low, nudge up a bit to avoid triggering an auto page break
+    if cur_y > footer_top - min_sig_h:
     pdf.set_y(max(pdf.t_margin, footer_top - min_sig_h))
-
-# Decide the signature block height based on what’s left
-cur_y = pdf.get_y()
-remaining = footer_top - GAP_BEFORE_FOOTER - cur_y
-sig_h = max(min_sig_h, min(max_sig_h, remaining))
-
-# Title
-pdf.set_font("Arial", "B", 11)
-pdf.cell(0, 7, _latin1("Authorized Signature / Stamp"), ln=1)
-pdf.set_font("Arial", "", 10)
-
-# Draw signature image if available, scaled to fit sig_h
-sig_path = _fetch_to_tmp(SIGNATURE_URL, "neochicks_signature") if SIGNATURE_URL else None
-block_top_y = pdf.get_y()
-if sig_path and sig_h > (min_sig_h + 2):
+    
+    # Decide the signature block height based on what’s left
+    cur_y = pdf.get_y()
+    remaining = footer_top - GAP_BEFORE_FOOTER - cur_y
+    sig_h = max(min_sig_h, min(max_sig_h, remaining))
+    
+    # Title
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 7, _latin1("Authorized Signature / Stamp"), ln=1)
+    pdf.set_font("Arial", "", 10)
+    
+    # Draw signature image if available, scaled to fit sig_h
+    sig_path = _fetch_to_tmp(SIGNATURE_URL, "neochicks_signature") if SIGNATURE_URL else None
+    block_top_y = pdf.get_y()
+    if sig_path and sig_h > (min_sig_h + 2):
     try:
-        # Leave a tiny top gap
-        y_sig = block_top_y + 2
-        # Draw image fitted to desired height; set width modestly so it doesn't expand height
-        img_h = sig_h - 6
-        img_h = max(8, img_h)
-        pdf.image(sig_path, x=pdf.get_x(), y=y_sig, h=img_h)  # fit by height
+    # Leave a tiny top gap
+    y_sig = block_top_y + 2
+    # Draw image fitted to desired height; set width modestly so it doesn't expand height
+    img_h = sig_h - 6
+    img_h = max(8, img_h)
+    pdf.image(sig_path, x=pdf.get_x(), y=y_sig, h=img_h)  # fit by height
     except Exception:
-        # If image fails, just fall back to an empty block line
-        pass
-
-# Move to end of signature block and draw a signature line
-pdf.set_y(block_top_y + sig_h)
-pdf.set_draw_color(160, 160, 160)
-x_line = pdf.get_x()
-pdf.line(x_line, pdf.get_y(), x_line + 60, pdf.get_y())
-pdf.ln(4)
-
-# --- Footer pinned to current page bottom ---
-# Reserve space and place footer on THIS page
-pdf.set_y(footer_top)
-pdf.set_font("Arial", "I", 9)
-pdf.set_text_color(120, 120, 120)
-pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
-pdf.set_text_color(0, 0, 0)  # reset
-
-
+    # If image fails, just fall back to an empty block line
+    pass
+    
+    # Move to end of signature block and draw a signature line
+    pdf.set_y(block_top_y + sig_h)
+    pdf.set_draw_color(160, 160, 160)
+    x_line = pdf.get_x()
+    pdf.line(x_line, pdf.get_y(), x_line + 60, pdf.get_y())
+    pdf.ln(4)
+    
+    # --- Footer pinned to current page bottom ---
+    # Reserve space and place footer on THIS page
+    pdf.set_y(footer_top)
+    pdf.set_font("Arial", "I", 9)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
+    pdf.set_text_color(0, 0, 0)  # reset
     return pdf.output(dest="S").encode("latin1")
 
 
