@@ -313,7 +313,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     price  = int(order.get("price", 0) or 0)
     qty    = 1
     amount = price * qty
-    desc   = f"{model} ({cap} eggs) — Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
+    desc = f"{model} — Delivery: {order.get('eta', '24 hours')} | {PAYMENT_NOTE}"
 
     # Draw row with wrapped description and aligned numeric cells
     pdf.set_font("Arial", "", 11)
