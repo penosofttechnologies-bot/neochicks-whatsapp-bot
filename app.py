@@ -315,10 +315,10 @@ def generate_invoice_pdf(order: dict) -> bytes:
     amount = price * qty
     def build_model(cap: int, is_solar: bool) -> str:
     # Build the full model label from flags
-    if is_solar:
-        return f"{cap} Eggs Automatic Incubator (Solar / Electric)"
-    else:
-        return f"{cap} Eggs Automatic Incubator (Free Backup Generator)"
+        if is_solar:
+            return f"{cap} Eggs Automatic Incubator (Solar / Electric)"
+        else:
+            return f"{cap} Eggs Automatic Incubator (Free Backup Generator)"
 
     def build_desc(cap: int, is_solar: bool, order: dict, PAYMENT_NOTE: str) -> str:
         model = build_model(cap, is_solar)
