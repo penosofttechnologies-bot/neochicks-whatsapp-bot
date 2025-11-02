@@ -342,7 +342,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
          "1) Pay on delivery. Please keep your phone on for delivery coordination.\n"      
         f"2) For assistance call {CALL_LINE}."
     ))
-    pdf.ln(10)
+    pdf.ln(5)
 
     # Signature / Stamp block
     sig_w = 45
@@ -886,3 +886,26 @@ def testmail():
 if __name__ == "__main__":
     # In production, use gunicorn with WEB_CONCURRENCY=1
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 3000)))
+
+@app.get("/testpdf")
+def testpdf():
+    """Quickly preview a sample invoice PDF without going through WhatsApp."""
+    sample_order = {
+        "id": "TEST-ORDER-123",
+        "customer_name": "Jane Wanjiku",
+        "customer_phone": "+254712345678",
+        "county": "Nairobi",
+        "model": "264 Eggs Automatic Incubator",
+        "capacity": 264,
+        "price": 45000,
+        "eta": "same day",
+        "created_at_utc": datetime.utcnow().isoformat() + "Z",
+    }
+    pdf_bytes = generate_invoice_pdf(sample_order)
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=False,
+        download_name="test_invoice.pdf"
+    )
+
