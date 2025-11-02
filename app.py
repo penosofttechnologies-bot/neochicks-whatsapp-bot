@@ -309,11 +309,30 @@ def generate_invoice_pdf(order: dict) -> bytes:
 
     # Single item
     model  = order.get("model", "")
-    cap    = order.get("capacity", "")
+    cap    = int(order.get("capacity", 0) or 0)
     price  = int(order.get("price", 0) or 0)
     qty    = 1
     amount = price * qty
-    desc   = f"{model} ({cap} eggs) — Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
+
+    # Look up flags from your CATALOG using capacity (fallback gracefully)
+    catalog_item = next((p for p in CATALOG if int(p.get("capacity", -1)) == cap), None)
+    is_solar = bool(catalog_item and catalog_item.get("solar"))
+    has_free_gen = bool(catalog_item and catalog_item.get("free_gen"))
+
+    # Build the full model label exactly as you wanted
+    if is_solar:
+        model_full = f"{cap} Eggs Automatic Incubator (Solar / Electric)"
+    elif has_free_gen:
+        model_full = f"{cap} Eggs Automatic Incubator (Free Backup Generator)"
+    else:
+        # Neutral fallback for models that are neither flagged solar nor free_gen
+        model_full = f"{cap} Eggs Automatic Incubator"
+
+    # ASCII-safe hyphen to avoid '?' with core fonts; keep your final PAYMENT_NOTE
+    desc = (
+        f"{model_full} | Pay on Delivery ({cap} eggs) - "
+        f"Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
+    )
 
     # Draw row with wrapped description and aligned numeric cells
     pdf.set_font("Arial", "", 11)
@@ -404,6 +423,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
 
     # Return bytes
     return pdf.output(dest="S").encode("latin1")
+
 
 
 
