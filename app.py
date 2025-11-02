@@ -398,7 +398,7 @@ pdf.set_text_color(120, 120, 120)
 pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
 pdf.set_text_color(0, 0, 0)  # reset color
 
-        return pdf.output(dest="S").encode("latin1")
+return pdf.output(dest="S").encode("latin1")
 
 
 
