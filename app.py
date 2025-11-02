@@ -240,39 +240,44 @@ def _eat_from_utc_iso(iso_str: str) -> str:
     return dt_eat.strftime("%Y-%m-%d")
 
 def generate_invoice_pdf(order: dict) -> bytes:
+    """
+    Neochicks formal invoice (1-page tuned)
+    Depends on: _latin1, _fetch_to_tmp, _eat_from_utc_iso, ksh, BUSINESS_NAME,
+                PAYMENT_NOTE, CALL_LINE, LOGO_URL, SIGNATURE_URL
+    """
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
     pdf.set_margins(15, 15, 15)
+    pdf.add_page()
 
     # --- Header band ---
-    pdf.set_fill_color(240, 248, 240)  # very light green
+    pdf.set_fill_color(240, 248, 240)  # very light green band
     pdf.rect(0, 0, 210, 25, "F")
 
-    # Try to place logo (left)
+    # Logo (optional)
     logo_path = _fetch_to_tmp(LOGO_URL, "neochicks_logo") if LOGO_URL else None
     if logo_path:
         try:
             pdf.image(logo_path, x=15, y=6, w=28)
         except Exception:
-            app.logger.exception("PDF logo draw failed")
+            pass
 
-    # Business name + title (right/top)
-    pdf.set_xy(15 + (30 if logo_path else 0) + 2, 7)
+    # Business name + invoice meta
+    left_after_logo = 15 + (30 if logo_path else 0) + 2
+    pdf.set_xy(left_after_logo, 7)
     pdf.set_font("Arial", "B", 15)
     pdf.cell(0, 7, _latin1(BUSINESS_NAME), ln=1)
 
-    pdf.set_x(15 + (30 if logo_path else 0) + 2)
+    pdf.set_x(left_after_logo)
     pdf.set_font("Arial", "", 11)
     pdf.cell(0, 6, _latin1("Pro-Forma Invoice"), ln=1)
 
-    # Meta line under header
+    # Meta lines
     pdf.ln(2)
+    eat_display = _eat_from_utc_iso(order.get('created_at_utc', ''))
     pdf.set_font("Arial", "", 10)
-    eat_display = _eat_from_utc_iso(order.get('created_at_utc',''))
     pdf.cell(0, 6, _latin1(f"Invoice No: {order.get('id','')}"), ln=1)
-    pdf.cell(0, 6, _latin1(f"Date (EAT): {eat_display}"), ln=1)
-
+    pdf.cell(0, 6, _latin1(f"Date (EAT, UTC+3): {eat_display}"), ln=1)
     pdf.ln(3)
 
     # Divider
@@ -290,11 +295,11 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.cell(0, 6, _latin1(f"County: {order.get('county','')}"), ln=1)
     pdf.ln(6)
 
-     # --- Items table (fit to content width exactly) ---
-    content_w = pdf.w - pdf.l_margin - pdf.r_margin  # usually 180 on A4 with 15mm margins
-    desc_w, qty_w, unit_w, amt_w = 95, 25, 30, 30     # sum exactly = content_w (95+25+30+30 = 180)
+    # --- Items table (fits exactly into content width) ---
+    content_w = pdf.w - pdf.l_margin - pdf.r_margin  # ~180 on A4 with 15mm margins
+    desc_w, qty_w, unit_w, amt_w = 95, 25, 30, 30    # sum = 180
 
-    # Header
+    # Header row
     pdf.set_font("Arial", "B", 11)
     pdf.set_fill_color(245, 245, 245)
     pdf.cell(desc_w, 8, _latin1("Description"), border=1, ln=0, align="L", fill=True)
@@ -302,102 +307,102 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.cell(unit_w, 8, _latin1("Unit Price"),  border=1, ln=0, align="R", fill=True)
     pdf.cell(amt_w,  8, _latin1("Amount"),      border=1, ln=1, align="R", fill=True)
 
-    # Single line item
-    model   = order.get("model", "")
-    cap     = order.get("capacity", "")
-    price   = int(order.get("price", 0) or 0)
-    qty     = 1
-    amount  = price * qty
-    desc    = f"{model} ({cap} eggs) — Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
+    # Single item
+    model  = order.get("model", "")
+    cap    = order.get("capacity", "")
+    price  = int(order.get("price", 0) or 0)
+    qty    = 1
+    amount = price * qty
+    desc   = f"{model} ({cap} eggs) — Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
 
+    # Draw row with wrapped description and aligned numeric cells
     pdf.set_font("Arial", "", 11)
-    _draw_item_row(
-        pdf,
-        desc=desc,
-        qty=qty,
-        unit_price=ksh(price),
-        amount=ksh(amount),
-        desc_w=desc_w, qty_w=qty_w, unit_w=unit_w, amt_w=amt_w,
-        line_h=8
-    )
+    x0 = pdf.get_x()
+    y0 = pdf.get_y()
+    line_h = 8
 
-    # --- Totals (each on its own full row) ---
+    pdf.multi_cell(desc_w, line_h, _latin1(desc), border=1, align="L")
+    y_after = pdf.get_y()
+    row_bottom = max(y0 + line_h, y_after)
+
+    pdf.set_xy(x0 + desc_w, y0)
+    pdf.cell(qty_w,  row_bottom - y0, _latin1(str(qty)),   border=1, align="C")
+    pdf.cell(unit_w, row_bottom - y0, _latin1(ksh(price)), border=1, align="R")
+    pdf.cell(amt_w,  row_bottom - y0, _latin1(ksh(amount)),border=1, align="R")
+    pdf.set_xy(pdf.l_margin, row_bottom)
+    pdf.ln(6)
+
+    # Totals rows (each on its own line)
     def totals_row(label: str, value: str, bold=False):
-        pdf.set_x(pdf.l_margin)  # start at left margin
+        pdf.set_x(pdf.l_margin)
         pdf.set_font("Arial", "B" if bold else "", 11)
-        # Label spans desc+qty+unit; value sits in amount column with a border
         pdf.cell(desc_w + qty_w + unit_w, 8, _latin1(label), border=0, ln=0, align="R")
         pdf.cell(amt_w, 8, _latin1(value), border=1, ln=1, align="R")
 
     totals_row("Subtotal", ksh(amount), bold=False)
     totals_row("Total",    ksh(amount), bold=True)
-    pdf.ln(8)
-# --- Notes (tightened spacing to save vertical space) ---
-pdf.set_font("Arial", "B", 11)
-pdf.cell(0, 7, _latin1("Notes"), ln=1)
-pdf.set_font("Arial", "", 10)
-pdf.multi_cell(0, 6, _latin1(
-    "1) Prices exclude optional solar packages.\n"
-    "2) Pay on delivery. Please keep your phone on for delivery coordination.\n"
-    "3) Includes setup guidance and 12-month warranty.\n"
-    f"4) For assistance call {CALL_LINE}."
-))
-pdf.ln(4)  # keep small
+    pdf.ln(6)
 
-# --- Signature / Stamp block with dynamic height clamp ---
-FOOTER_H = 16                 # footer height we will reserve
-GAP_BEFORE_FOOTER = 4         # breathing space above footer
-min_sig_h = 10                # minimal signature box height
-max_sig_h = 22                # desired signature box height (keep small to stay 1-page)
+    # --- Notes (tight but readable) ---
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 7, _latin1("Notes"), ln=1)
+    pdf.set_font("Arial", "", 10)
+    pdf.multi_cell(0, 6, _latin1(
+        "1) Prices exclude optional solar packages.\n"
+        "2) Pay on delivery. Please keep your phone on for delivery coordination.\n"
+        "3) Includes setup guidance and 12-month warranty.\n"
+        f"4) For assistance call {CALL_LINE}."
+    ))
+    pdf.ln(4)
 
-# Compute how much space is left before we must place the footer
-page_h = pdf.h
-footer_top = page_h - pdf.b_margin - FOOTER_H
-cur_y = pdf.get_y()
+    # --- Signature / Stamp block with dynamic height clamp so footer stays on page 1 ---
+    FOOTER_H = 16                # reserved footer height
+    GAP_BEFORE_FOOTER = 4        # spacing above footer
+    min_sig_h = 10               # minimum signature block height
+    max_sig_h = 22               # maximum signature block height
 
-# If we're already too low, nudge up a bit to avoid triggering an auto page break
-if cur_y > footer_top - min_sig_h:
-    pdf.set_y(max(pdf.t_margin, footer_top - min_sig_h))
+    page_h = pdf.h
+    footer_top = page_h - pdf.b_margin - FOOTER_H
+    cur_y = pdf.get_y()
 
-# Decide the signature block height based on what’s left
-cur_y = pdf.get_y()
-remaining = footer_top - GAP_BEFORE_FOOTER - cur_y
-sig_h = max(min_sig_h, min(max_sig_h, remaining))
+    # If we're too low, nudge up a bit so we can still fit the footer
+    if cur_y > footer_top - min_sig_h:
+        pdf.set_y(max(pdf.t_margin, footer_top - min_sig_h))
 
-# Title
-pdf.set_font("Arial", "B", 11)
-pdf.cell(0, 7, _latin1("Authorized Signature / Stamp"), ln=1)
-pdf.set_font("Arial", "", 10)
+    cur_y = pdf.get_y()
+    remaining = footer_top - GAP_BEFORE_FOOTER - cur_y
+    sig_h = max(min_sig_h, min(max_sig_h, remaining))
 
-# Draw signature image if available, scaled to fit sig_h
-sig_path = _fetch_to_tmp(SIGNATURE_URL, "neochicks_signature") if SIGNATURE_URL else None
-block_top_y = pdf.get_y()
-if sig_path and sig_h > (min_sig_h + 2):
-    try:
-        # Leave a tiny top gap
-        y_sig = block_top_y + 2
-        # Draw image fitted to desired height; set width modestly so it doesn't expand height
-        img_h = sig_h - 6
-        img_h = max(8, img_h)
-        pdf.image(sig_path, x=pdf.get_x(), y=y_sig, h=img_h)  # fit by height
-    except Exception:
-        # If image fails, just fall back to an empty block line
-        pass
+    # Title for signature
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 7, _latin1("Authorized Signature / Stamp"), ln=1)
+    pdf.set_font("Arial", "", 10)
 
-# Move to end of signature block and draw a signature line
-pdf.set_y(block_top_y + sig_h)
-pdf.set_draw_color(160, 160, 160)
-x_line = pdf.get_x()
-pdf.line(x_line, pdf.get_y(), x_line + 60, pdf.get_y())
-pdf.ln(4)
+    block_top_y = pdf.get_y()
+    sig_path = _fetch_to_tmp(SIGNATURE_URL, "neochicks_signature") if SIGNATURE_URL else None
+    if sig_path and sig_h > (min_sig_h + 2):
+        try:
+            y_sig = block_top_y + 2
+            img_h = max(8, sig_h - 6)
+            pdf.image(sig_path, x=pdf.get_x(), y=y_sig, h=img_h)
+        except Exception:
+            pass
 
-# --- Footer pinned to current page bottom ---
-pdf.set_y(footer_top)
-pdf.set_font("Arial", "I", 9)
-pdf.set_text_color(120, 120, 120)
-pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
-pdf.set_text_color(0, 0, 0)  # reset color
+    # Move to end of signature block and draw the signature line
+    pdf.set_y(block_top_y + sig_h)
+    pdf.set_draw_color(160, 160, 160)
+    x_line = pdf.get_x()
+    pdf.line(x_line, pdf.get_y(), x_line + 60, pdf.get_y())
+    pdf.ln(4)
 
+    # --- Footer pinned to bottom of this page ---
+    pdf.set_y(footer_top)
+    pdf.set_font("Arial", "I", 9)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
+    pdf.set_text_color(0, 0, 0)
+
+    # Return bytes
     return pdf.output(dest="S").encode("latin1")
 
 
