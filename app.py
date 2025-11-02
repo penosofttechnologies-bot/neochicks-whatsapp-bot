@@ -358,7 +358,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     
     # If we're already too low, nudge up a bit to avoid triggering an auto page break
     if cur_y > footer_top - min_sig_h:
-    pdf.set_y(max(pdf.t_margin, footer_top - min_sig_h))
+        pdf.set_y(max(pdf.t_margin, footer_top - min_sig_h))
     
     # Decide the signature block height based on what’s left
     cur_y = pdf.get_y()
@@ -374,16 +374,16 @@ def generate_invoice_pdf(order: dict) -> bytes:
     sig_path = _fetch_to_tmp(SIGNATURE_URL, "neochicks_signature") if SIGNATURE_URL else None
     block_top_y = pdf.get_y()
     if sig_path and sig_h > (min_sig_h + 2):
-    try:
+        try:
     # Leave a tiny top gap
     y_sig = block_top_y + 2
     # Draw image fitted to desired height; set width modestly so it doesn't expand height
     img_h = sig_h - 6
     img_h = max(8, img_h)
     pdf.image(sig_path, x=pdf.get_x(), y=y_sig, h=img_h)  # fit by height
-    except Exception:
+        except Exception:
     # If image fails, just fall back to an empty block line
-    pass
+        pass
     
     # Move to end of signature block and draw a signature line
     pdf.set_y(block_top_y + sig_h)
@@ -399,7 +399,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.set_text_color(120, 120, 120)
     pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
     pdf.set_text_color(0, 0, 0)  # reset
-    return pdf.output(dest="S").encode("latin1")
+        return pdf.output(dest="S").encode("latin1")
 
 
 
