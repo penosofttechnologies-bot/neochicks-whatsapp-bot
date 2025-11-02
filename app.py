@@ -376,7 +376,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
     if sig_path and sig_h > (min_sig_h + 2):
         try:
     # Leave a tiny top gap
-    y_sig = block_top_y + 2
+            y_sig = block_top_y + 2
     # Draw image fitted to desired height; set width modestly so it doesn't expand height
     img_h = sig_h - 6
     img_h = max(8, img_h)
