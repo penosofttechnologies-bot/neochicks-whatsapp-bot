@@ -360,7 +360,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
             pdf.ln(sig_w * 0.6 + 2)
         except Exception:
             app.logger.exception("PDF signature draw failed")
-            pdf.ln(14)
+            pdf.ln(4)
     else:
         pdf.ln(10)
     # Signature line
