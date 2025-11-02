@@ -378,9 +378,9 @@ def generate_invoice_pdf(order: dict) -> bytes:
     # Leave a tiny top gap
             y_sig = block_top_y + 2
     # Draw image fitted to desired height; set width modestly so it doesn't expand height
-    img_h = sig_h - 6
-    img_h = max(8, img_h)
-    pdf.image(sig_path, x=pdf.get_x(), y=y_sig, h=img_h)  # fit by height
+            img_h = sig_h - 6
+            img_h = max(8, img_h)
+            pdf.image(sig_path, x=pdf.get_x(), y=y_sig, h=img_h)  # fit by height
         except Exception:
     # If image fails, just fall back to an empty block line
         pass
