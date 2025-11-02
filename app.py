@@ -350,7 +350,26 @@ def generate_invoice_pdf(order: dict) -> bytes:
     pdf.cell(0, 7, _latin1("Authorized Signature / Stamp"), ln=1)
     pdf.set_font("Arial", "", 10)
 
-
+     # Signature image if provided
+    sig_path = _fetch_to_tmp(SIGNATURE_URL, "neochicks_signature") if SIGNATURE_URL else None
+    if sig_path:
+        try:
+            x_sig = pdf.get_x()
+            y_sig = pdf.get_y()
+            pdf.image(sig_path, x=x_sig, y=y_sig, w=sig_w)
+            pdf.ln(sig_w * 0.6 + 2)
+        except Exception:
+            app.logger.exception("PDF signature draw failed")
+            pdf.ln(14)
+    else:
+        pdf.ln(14)
+    # Signature line
+    cur_x = pdf.get_x()
+    cur_y = pdf.get_y()
+    pdf.set_draw_color(160, 160, 160)
+    pdf.line(cur_x, cur_y, cur_x + 60, cur_y)
+    pdf.ln(6)
+    
     # Footer (simple, light gray)
     pdf.set_y(-10)
     pdf.set_font("Arial", "I", 9)
