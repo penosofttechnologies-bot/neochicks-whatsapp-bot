@@ -330,8 +330,8 @@ def generate_invoice_pdf(order: dict) -> bytes:
 
     # ASCII-safe hyphen to avoid '?' with core fonts; keep your final PAYMENT_NOTE
     desc = (
-        f"{model_full} | Pay on Delivery ({cap} eggs) - "
-        f"Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
+        f"{model_full} | FREE Delivery ({cap} eggs) \n"
+        f"- Delivery: {order.get('eta','24 hours')} | {PAYMENT_NOTE}"
     )
 
     # Draw row with wrapped description and aligned numeric cells
