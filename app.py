@@ -342,7 +342,7 @@ def generate_invoice_pdf(order: dict) -> bytes:
          "1) Pay on delivery. Please keep your phone on for delivery coordination.\n"      
         f"2) For assistance call {CALL_LINE}."
     ))
-    pdf.ln(5)
+    pdf.ln(3)
 
     # Signature / Stamp block
     sig_w = 45
@@ -362,16 +362,16 @@ def generate_invoice_pdf(order: dict) -> bytes:
             app.logger.exception("PDF signature draw failed")
             pdf.ln(14)
     else:
-        pdf.ln(14)
+        pdf.ln(10)
     # Signature line
     cur_x = pdf.get_x()
     cur_y = pdf.get_y()
     pdf.set_draw_color(160, 160, 160)
     pdf.line(cur_x, cur_y, cur_x + 60, cur_y)
-    pdf.ln(6)
+    pdf.ln(4)
     
     # Footer (simple, light gray)
-    pdf.set_y(-10)
+    pdf.set_y(-8)
     pdf.set_font("Arial", "I", 9)
     pdf.set_text_color(120, 120, 120)
     pdf.cell(0, 6, _latin1("Thank you for choosing Neochicks Poultry Ltd."), ln=1, align="C")
