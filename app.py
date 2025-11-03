@@ -116,8 +116,8 @@ def delivery_eta_text(county: str) -> str:
 MENU_BUTTONS = [
     "Prices/Capacities 💰📦",
     "Delivery Terms 🚚",
-    "Incubator issues 🛠️",
-    "Talk to an Agent 👩🏽‍💼"
+    "Talk to an Agent 👩🏽‍💼",
+    "Incubator issues 🛠️"    
 ]
 
 CATALOG = [
