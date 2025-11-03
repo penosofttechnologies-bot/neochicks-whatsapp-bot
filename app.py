@@ -637,7 +637,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 gen = "\n🎁 Includes *Free Backup Generator*" if p["free_gen"] else ""
                 out = {"text": "📦 *" + p['name'] + "*" + extra + "\nCapacity: " + str(p['capacity']) + " eggs\nPrice: " + ksh(p['price']) + gen}
                 if p.get("image"):
-                    out.update({"mediaUrl": p["image"], "caption": p['name'] + " — " + ksh(p['price']) + "\n\n -  -  -  - -  -  -  -  -  -  - \nReply with your *county* and I will tell you how long it takes to deliver there 🙏" + PAYMENT_NOTE + "."})
+                    out.update({"mediaUrl": p["image"], "caption": p['name'] + " — " + ksh(p['price']) + "\n\n -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - \nReply with your *county* and I will tell you how long it takes to deliver there 🙏" + PAYMENT_NOTE + "."})
                 sess["last_product"] = p
                 return out
 
