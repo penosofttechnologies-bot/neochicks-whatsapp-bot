@@ -17,6 +17,7 @@ import io
 import re
 import json
 import logging
+import csv, gzip, base64
 from datetime import datetime, timedelta
 
 import requests
@@ -51,6 +52,11 @@ INVOICE_TTL_MIN = int(os.getenv("INVOICE_TTL_MIN", "1440"))  # minutes
 EXTERNAL_BASE   = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
 LOGO_URL = os.getenv("LOGO_URL", "")           # optional
 SIGNATURE_URL = os.getenv("SIGNATURE_URL", "") # optional
+
+# ---- Logging & storage paths (persistent on Render Disk if mounted at /data) ----
+_DATA = "/data" if os.path.isdir("/data") else "/tmp"
+AUDIT_PATH = os.path.join(_DATA, "wa_audit.jsonl.gz")   # masked analytics log (no PDFs/images)
+LEADS_CSV  = os.path.join(_DATA, "wa_leads.csv")        # raw phone leads for follow-ups
 
 # -------------------------
 # In-memory store (temporary)
@@ -117,7 +123,7 @@ MENU_BUTTONS = [
     "Prices/Capacities 💰📦",
     "Delivery Terms 🚚",
     "Talk to an Agent 👩🏽‍💼",
-    "Incubator issues 🛠️"    
+    "Incubator issues 🛠️"
 ]
 
 CATALOG = [
@@ -195,7 +201,7 @@ def _fetch_to_tmp(url: str, basename: str) -> str | None:
 
 def _latin1(s: str) -> str:
     return (s or "").encode("latin-1", "replace").decode("latin-1")
-    
+
 def _draw_item_row(pdf, desc, qty, unit_price, amount,
     desc_w, qty_w, unit_w, amt_w, line_h=8):
     """
@@ -424,9 +430,6 @@ def generate_invoice_pdf(order: dict) -> bytes:
     # Return bytes
     return pdf.output(dest="S").encode("latin1")
 
-
-
-
 # -------------------------
 # Email (SendGrid)
 # -------------------------
@@ -449,6 +452,49 @@ def send_email(subject: str, body: str) -> bool:
         return r.status_code in (200, 202)
     except Exception:
         app.logger.exception("SendGrid exception")
+        return False
+
+def send_email_with_attachments(subject: str, body: str, attachments: list[tuple[str, str]]) -> bool:
+    """
+    SendGrid email with multiple attachments.
+    attachments: list of tuples (filename, filepath)
+    """
+    if not (SENDGRID_API_KEY and SENDGRID_FROM and SALES_EMAIL):
+        app.logger.info("Email not sent—missing SENDGRID_API_KEY/SENDGRID_FROM/SALES_EMAIL")
+        return False
+    try:
+        atts = []
+        for name, path in attachments or []:
+            if not (name and path and os.path.exists(path)):
+                continue
+            with open(path, "rb") as fh:
+                b64 = base64.b64encode(fh.read()).decode("ascii")
+            mime = "application/gzip" if name.endswith(".gz") else "text/csv"
+            atts.append({
+                "content": b64,
+                "type": mime,
+                "filename": name,
+                "disposition": "attachment",
+            })
+
+        payload = {
+            "personalizations": [{"to": [{"email": SALES_EMAIL}]}],
+            "from": {"email": SENDGRID_FROM, "name": "Neochicks Bot"},
+            "subject": subject,
+            "content": [{"type": "text/plain", "value": body}],
+        }
+        if atts:
+            payload["attachments"] = atts
+
+        r = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {SENDGRID_API_KEY}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=30,
+        )
+        return r.status_code in (200, 202)
+    except Exception:
+        app.logger.exception("SendGrid attachments exception")
         return False
 
 # -------------------------
@@ -560,6 +606,56 @@ def new_order_id():
     return f"NEO-{ts}"
 
 # -------------------------
+# Logging helpers (audit + leads)
+# -------------------------
+def _audit_write(event: dict):
+    """
+    Append one masked JSON record per line to a gzipped file.
+    Keeps phones masked to avoid PII in analytics. Small text only (no PDFs/images).
+    """
+    try:
+        ev = dict(event or {})
+        ev["ts_utc"] = datetime.utcnow().isoformat() + "Z"
+
+        def _mask(v: str):
+            if not v: return v
+            d = re.sub(r"\D", "", v)
+            return "***" + d[-3:] if len(d) >= 3 else "***"
+
+        for k in ("from","to","customer_phone","wa_from"):
+            if k in ev and isinstance(ev[k], str):
+                ev[k] = _mask(ev[k])
+
+        line = (json.dumps(ev, ensure_ascii=False) + "\n").encode("utf-8")
+        with gzip.open(AUDIT_PATH, "ab") as fh:
+            fh.write(line)
+    except Exception:
+        app.logger.exception("audit write failed")
+
+def _leads_add(wa_from: str, name: str, phone: str, county: str, intent: str, last_text: str):
+    """
+    Append raw leads with real phone numbers for follow-ups.
+    CSV is easy to open in Excel or import to a CRM.
+    """
+    try:
+        is_new = not os.path.exists(LEADS_CSV)
+        with open(LEADS_CSV, "a", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            if is_new:
+                w.writerow(["ts_utc","wa_from","customer_name","customer_phone","county","intent","last_text"])
+            w.writerow([
+                datetime.utcnow().isoformat() + "Z",
+                wa_from or "",
+                (name or "").strip(),
+                (phone or "").strip(),
+                (county or "").strip(),
+                intent,
+                (last_text or "")[:200],
+            ])
+    except Exception:
+        app.logger.exception("leads write failed")
+
+# -------------------------
 # Brain / router
 # -------------------------
 def brain_reply(text: str, from_wa: str = "") -> dict:
@@ -669,6 +765,15 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         if len(re.sub(r"\D", "", phone)) < 9:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
         sess["customer_phone"] = phone
+        # ---- leads capture (new) ----
+        _leads_add(
+            wa_from=from_wa,
+            name=sess.get("customer_name",""),
+            phone=phone,
+            county=sess.get("last_county",""),
+            intent="new_phone",
+            last_text=t
+        )
         sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
@@ -709,6 +814,15 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         if len(re.sub(r"\D", "", phone)) < 9:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
         sess["customer_phone"] = phone
+        # ---- leads capture (edited phone) ----
+        _leads_add(
+            wa_from=from_wa,
+            name=sess.get("customer_name",""),
+            phone=phone,
+            county=sess.get("last_county",""),
+            intent="edit_phone",
+            last_text=t
+        )
         sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
@@ -815,6 +929,16 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 except Exception:
                     app.logger.exception("Fallback text send failed")
 
+        # ---- leads capture (confirmed order) ----
+        _leads_add(
+            wa_from=from_wa,
+            name=order["customer_name"],
+            phone=order["customer_phone"],
+            county=order["county"],
+            intent="confirmed",
+            last_text=order["model"]
+        )
+
         # reset session
         SESS[from_wa] = {"state": None, "page": 1}
         return {"text": "✅ Order confirmed! I’ve sent your pro-forma invoice. Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
@@ -879,7 +1003,28 @@ def webhook():
             elif inter.get("type") == "list_reply":
                 text = inter.get("list_reply", {}).get("title", "")
 
+        # ---- audit incoming (masked) ----
+        _audit_write({
+            "direction": "in",
+            "raw_type": msg.get("type"),
+            "from": from_wa,
+            "text": text,
+            "state": SESS.get(from_wa, {}).get("state"),
+        })
+
         reply = brain_reply(text, from_wa)
+
+        # ---- audit outgoing (masked) ----
+        _audit_write({
+            "direction": "out",
+            "to": from_wa,
+            "text": reply.get("text"),
+            "buttons": reply.get("buttons"),
+            "mediaUrl": reply.get("mediaUrl"),
+            "caption": reply.get("caption"),
+            "state_after": SESS.get(from_wa, {}).get("state"),
+        })
+
         if reply.get("text"):
             try:
                 send_text(from_wa, reply["text"])
@@ -924,6 +1069,33 @@ def invoice(order_id):
 def testmail():
     ok = send_email("Neochicks Test Email", "It works! ✅")
     return ("OK" if ok else "FAIL"), 200
+
+# ---- Daily logs email endpoint (for Render Cron) ----
+@app.get("/send_daily_logs")
+def send_daily_logs():
+    try:
+        attachments = []
+        if os.path.exists(AUDIT_PATH):
+            attachments.append(("wa_audit.jsonl.gz", AUDIT_PATH))
+        if os.path.exists(LEADS_CSV):
+            attachments.append(("wa_leads.csv", LEADS_CSV))
+
+        if not attachments:
+            return "No logs to send", 200
+
+        subject = f"Neochicks Daily Logs — {datetime.utcnow().strftime('%Y-%m-%d')}"
+        body = "Daily WhatsApp audit (masked) and leads (raw phones) attached."
+
+        ok = send_email_with_attachments(subject, body, attachments)
+        if ok:
+            # Optional cleanup: comment these if you prefer to keep accumulating
+            # os.remove(AUDIT_PATH)
+            # os.remove(LEADS_CSV)
+            return "OK", 200
+        return "Email send failed", 500
+    except Exception:
+        app.logger.exception("send_daily_logs failed")
+        return "error", 500
 
 # -------------------------
 # Run (local only)
