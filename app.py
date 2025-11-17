@@ -953,7 +953,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         return {"text": f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nGreat! Please share your *full name* for the pro-forma."}
 
     # Fallback
-    return {"text": "Got it! Tap *Prices/Capacities*, *Delivery Terms*, *Incubator issues*, or *Talk to an Agent*.", "buttons": MENU_BUTTONS}
+    return {"text": "Okay. What would like to know about?", "buttons": MENU_BUTTONS}
 
 # -------------------------
 # Routes
