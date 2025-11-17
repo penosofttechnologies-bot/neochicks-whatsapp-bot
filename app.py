@@ -120,7 +120,7 @@ def delivery_eta_text(county: str) -> str:
     return "same day" if key == "nairobi" else "24 hours"
 
 MENU_BUTTONS = [
-    "Prices/Capacities 💰📦",
+    "Incubator Prices 💰📦",
     "Delivery Terms 🚚",
     "Talk to an Agent 👩🏽‍💼",
     "Incubator issues 🛠️"
