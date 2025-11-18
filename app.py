@@ -163,11 +163,10 @@ def price_page_text(page: int = 1, per_page: int = 20) -> str:
     chunk = items[start : start + per_page]
     lines = [product_line(p) for p in chunk]
 
-#    footer = (
-#       f"\n\nPage {page} of {pages}. "
-#        "Type *next* to see more, or type a *capacity that you have in mind* (e.g., 100, 200, 528, 1000 etc)."
-#   )
-    return "🐣 *Capacities with Prices*\n" + "\n".join(lines)
+    footer = (
+               "Just type the *capacity that you want* (e.g., 100, 200, 528, 1000 etc) and I will give you its details 🙏"
+   )
+    return "🐣 *Capacities with Prices*\n" + "\n".join(lines) + footer
 
 def find_by_capacity(cap: int):
     items = sorted(CATALOG, key=lambda x: x["capacity"])
