@@ -150,7 +150,7 @@ CATALOG = [
 ]
 
 def product_line(p: dict) -> str:
-    tag = " (Solar/Electric)" if p.get("solar") else ""
+    tag = "(Solar/Electric)" if p.get("solar") else ""
     gen = " + *Generator*" if p.get("free_gen") else ""
     return f"- {p['name']}{tag}→{ksh(p['price'])}{gen}"
 
