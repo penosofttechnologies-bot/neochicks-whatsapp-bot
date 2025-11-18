@@ -162,7 +162,7 @@ def price_page_text(page: int = 1, per_page: int = 20) -> str:
     lines = [product_line(p) for p in chunk]
 
     footer = (
-               "\nJust type the *capacity that you want* (e.g., 100, 200, 528, 1000 etc) and I will give you its details 🙏"
+               "\n-------------------\nPlease type the *capacity that you want* (e.g. 64, 528 etc) and I will give you its details 🙏"
    )
     return "🐣 *Capacities with Prices*\n" + "\n".join(lines) + footer
 
