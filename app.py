@@ -107,9 +107,9 @@ def guess_county(text: str):
 
 def ksh(n: int) -> str:
     try:
-        return f"KSh {int(n):,}"
+        return f"KSh{int(n):,}"
     except Exception:
-        return f"KSh {n}"
+        return f"KSh{n}"
 
 def is_after_hours():
     eat_hour = (datetime.utcnow().hour + 3) % 24
