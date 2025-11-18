@@ -145,16 +145,16 @@ CATALOG = [
     {"name":"1232 Eggs","capacity":1232,"price":90000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/1232-Eggs-automatic-incubator.jpg"},
     {"name":"1584 Eggs","capacity":1584,"price":115000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/1584-Eggs-Incubator.jpg"},
     {"name":"2112 Eggs","capacity":2112,"price":120000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/2112-Eggs-Incubator.png"},
-    {"name":"4928 Eggs","capacity":4928,"price":230000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280Incubator.jpg"},
+    {"name":"3520 Eggs","capacity":3520,"price":180000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280Incubator.jpg"},
     {"name":"5280 Eggs","capacity":5280,"price":240000,"solar":False,"free_gen":True,"image":"https://neochickspoultry.com/wp-content/uploads/2021/09/5280-Eggs-Incubator.png"},
 ]
 
 def product_line(p: dict) -> str:
     tag = " (Solar/Electric)" if p.get("solar") else ""
     gen = " + *Free Backup Generator*" if p.get("free_gen") else ""
-    return f"- {p['name']}{tag} → {ksh(p['price'])}{gen}"
+    return f"- {p['name']}{tag}→{ksh(p['price'])}{gen}"
 
-def price_page_text(page: int = 1, per_page: int = 12) -> str:
+def price_page_text(page: int = 1, per_page: int = 20) -> str:
     items = sorted(CATALOG, key=lambda x: x["capacity"])
     total = len(items)
     pages = max(1, (total + per_page - 1) // per_page)
