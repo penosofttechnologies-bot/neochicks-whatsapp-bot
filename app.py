@@ -675,6 +675,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     t = (text or "").strip()
     low = t.lower()
     sess = SESS.setdefault(from_wa, {"state": None, "page": 1})
+    digits = re.sub(r"[^0-9]", "", low)
+
 
     # -------------------------
     # CANCEL flow
