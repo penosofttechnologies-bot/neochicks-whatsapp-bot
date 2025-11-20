@@ -125,6 +125,21 @@ MENU_BUTTONS = [
     "Talk to an Agent 👩🏽‍💼",
     "Incubator issues 🛠️"
 ]
+def main_menu_text(after_note: str = "") -> str:
+    """
+    Bold + emoji classic numbered menu for first interaction and 'back to menu'.
+    """
+    return (
+        "🐣 Karibu *Neochicks Ltd.*\n"
+        "The leading incubators supplier in Kenya and East Africa.\n"
+        "Please choose what you are interested in:\n\n"
+        "1️⃣ *Incubators* 🌡️\n"
+        "2️⃣ *Chicks* 🐥\n"
+        "3️⃣ *Fertile Eggs* 🥚\n"
+        "4️⃣ *Cages & Equipment* 🪺\n\n"
+        "Reply with one of the *numbers above* or type what you need🙏.\n"
+        f"☎️ {CALL_LINE}" + after_note
+    )
 
 CATALOG = [
     {"name":"56 Eggs","capacity":56,"price":13000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2018/12/56-Eggs-solar-electric-incubator-1-600x449.png"},
@@ -671,7 +686,9 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     if sess.get("state") == "cancel_confirm":
         if low in {"yes","y","confirm","ok"}:
             SESS[from_wa] = {"state": None, "page": 1}
-            return {"text": "❌ Order cancelled. You’re back at the main menu.", "buttons": MENU_BUTTONS}
+            # Back to our new text-only main menu
+            return {"text": "❌ Order cancelled. You’re back at the main menu.\n\n" + main_menu_text()}
+
         if low in {"no","n","back"}:
             sess["state"] = sess.get("prev_state") or None
             prev_state = sess.get("prev_state")
@@ -681,12 +698,47 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
     after_note = ("\n\n⏰ " + AFTER_HOURS_NOTE) if is_after_hours() else ""
 
-    # MENU
+    # MAIN MENU (first interaction)
     if low in {"", "hi", "hello", "start", "want", "incubator", "need an incubator"} and not sess.get("state"):
-        return {"text": ("🐣 Karibu *Neochicks Ltd.*\n"
-                         "The leading incubators supplier in Kenya and East Africa.\n"
-                         "Click one of the options below and I will answer you:\n\n"
-                         "☎️ " + CALL_LINE) + after_note, "buttons": MENU_BUTTONS}
+        # Show product categories instead of quick-reply buttons
+        return {"text": main_menu_text(after_note)}
+        
+            # TOP-LEVEL NUMBERED MAIN MENU (idle)
+    if not sess.get("state"):
+        # Extract digits so '1.', '1)', '1 -' still work
+        digits = re.sub(r"[^0-9]", "", low)
+
+        # 1️⃣ Incubators → behave exactly like "Incubator Prices 💰📦"
+        if digits == "1":
+            sess["state"] = "prices"
+            sess["page"] = 1
+            return {"text": price_page_text(page=1)}
+
+        # 2️⃣ Day-old chicks (placeholder for now)
+        if digits == "2":
+            return {"text": (
+                "🐥 *Day-old Chicks*\n\n"
+                "Chicks menu is coming soon to this bot.\n"
+                f"For now, please call or WhatsApp {CALL_LINE} for the latest chicks availability and prices."
+            )}
+
+        # 3️⃣ Fertilised eggs (placeholder)
+        if digits == "3":
+            return {"text": (
+                "🥚 *Fertilised Eggs*\n\n"
+                "Eggs menu is coming soon to this bot.\n"
+                f"For now, please call or WhatsApp {CALL_LINE} for current fertilised eggs prices."
+            )}
+
+        # 4️⃣ Cages & equipment (placeholder)
+        if digits == "4":
+            return {"text": (
+                "🪺 *Cages & Equipment*\n\n"
+                "Cages and equipment menu is coming soon.\n"
+                f"For inquiries, please call or WhatsApp {CALL_LINE} and mention cages/equipment."
+            )}
+
+
         # AGENT (explicit, matches button title + free text variants)
     if any(kw in low for kw in {
         "talk to an agent", "speak to an agent", "agent", "human", "representative",
@@ -950,8 +1002,9 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["state"] = "await_name"
         return {"text": f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nGreat! Please share your *full name* for the pro-forma."}
 
-    # Fallback
-    return {"text": "Okay. What would like to know about?", "buttons": MENU_BUTTONS}
+    # Fallback → show main menu again
+    return {"text": "I didn’t quite get that.\n\n" + main_menu_text(after_note)}
+
 
 # -------------------------
 # Routes
