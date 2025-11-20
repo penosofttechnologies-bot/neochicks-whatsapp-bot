@@ -700,8 +700,34 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
     # MAIN MENU (first interaction)
     if low in {"", "hi", "hello", "start", "want", "incubator", "need an incubator"} and not sess.get("state"):
-        # Show product categories instead of quick-reply buttons
         return {"text": main_menu_text(after_note)}
+    # CHICKS FLOW (priority handler — catches "2" and any 'chicks' text)
+    if not sess.get("state"):
+        digits = re.sub(r"[^0-9]", "", low)
+        is_chicks = ("chick" in low)
+
+        if digits == "2" or is_chicks:
+            sess["state"] = "chicks_menu"
+            return {"text": (
+                "YES, we deal with quality chicks at different ages.\n"
+                "*Improved Kienyeji chicks*\n"
+                "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
+                "3 days → *Ksh100*\n"
+                "1 week → *Ksh130*\n"
+                "2 weeks → *Ksh160*\n"
+                "3 weeks → *Ksh200*\n"
+                "4 weeks → *Ksh230*\n\n"
+                "*LAYERS CHICKS*\n"
+                "1 DAY OLD → *Ksh160*\n"
+                "5 MONTHS OLD → *Ksh850*\n\n"
+                "If you like, I can share the *photos of different ages of chicks*.\n"
+                "Simply type: *PHOTOS*\n\n"
+                f"For more information on delivery, availability, pictures etc,\n"
+                f"please call us on: {CALL_LINE}\n"
+                "You can also visit our website:\n"
+                "https://neochickspoultry.com/kienyeji-farming/"
+            )}
+
         
             # TOP-LEVEL NUMBERED MAIN MENU (idle)
     if not sess.get("state"):
@@ -712,15 +738,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         if digits == "1":
             sess["state"] = "prices"
             sess["page"] = 1
-            return {"text": price_page_text(page=1)}
-
-        # 2️⃣ Day-old chicks (placeholder for now)
-        if digits == "2":
-            return {"text": (
-                "🐥 *Day-old Chicks*\n\n"
-                "Chicks menu is coming soon to this bot.\n"
-                f"For now, please call or WhatsApp {CALL_LINE} for the latest chicks availability and prices."
-            )}
+            return {"text": price_page_text(page=1)}          
 
         # 3️⃣ Fertilised eggs (placeholder)
         if digits == "3":
