@@ -118,7 +118,6 @@ def is_after_hours():
 def delivery_eta_text(county: str) -> str:
     key = (county or "").strip().lower().split()[0] if county else ""
     return "same day" if key == "nairobi" else "24 hours"
-Near where you defined main_menu_text / catalog / chicks, add this function:
 MENU_BUTTONS = [
     "Incubator Prices 💰📦",
     "Delivery Terms 🚚",
@@ -825,8 +824,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             return {
                 "text": (
                     "Great! Here are some *example photos of our fertile eggs and packaging* 🥚\n\n"
-                    "Fertile Kienyeji Eggs\n(photo or link here)\n\n"
-                    "Fertile Layers Eggs\n(photo or link here)\n\n"
+                    "Our Kari Chicken\nhttps://neochickspoultry.com/wp-content/uploads/2025/11/Kari-scaled.jpg\n\n"
+                    "Our Kenbro Chicken\nhttps://neochickspoultry.com/wp-content/uploads/2025/11/Kenbro-scaled.jpg\n\n"
+                    "Our Kuroiler Chicken\nhttps://neochickspoultry.com/wp-content/uploads/2025/11/Kuroilers.jpg\n\n"
+                    "Our Rainbow Rooster Chicken\nhttps://neochickspoultry.com/wp-content/uploads/2025/11/Rainbow-rooster.jpg\n\n"
                     f"For more information on delivery, availability or ordering fertile eggs, call us at {CALL_LINE}.\n"
                     "You can also visit:\nhttps://neochickspoultry.com/kienyeji-farming/"
                 )
