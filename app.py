@@ -676,95 +676,52 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     low = t.lower()
     sess = SESS.setdefault(from_wa, {"state": None, "page": 1})
 
+    # -------------------------
     # CANCEL flow
-    if any(k in low for k in ["cancel","stop","abort","start over","back to menu","main menu","menu"]) and \
-       sess.get("state") in {"await_name","await_phone","await_confirm","edit_menu","edit_name","edit_phone","edit_county","edit_model","cancel_confirm"}:
+    # -------------------------
+    if any(k in low for k in ["cancel", "stop", "abort", "start over", "back to menu", "main menu", "menu"]) and \
+       sess.get("state") in {
+           "await_name", "await_phone", "await_confirm",
+           "edit_menu", "edit_name", "edit_phone", "edit_county", "edit_model",
+           "cancel_confirm", "await_county"
+       }:
         if sess.get("state") != "cancel_confirm":
             sess["prev_state"] = sess.get("state")
             sess["state"] = "cancel_confirm"
             return {"text": "Are you sure you want to cancel this order? Reply *YES* to confirm, or *NO* to continue."}
-    if sess.get("state") == "cancel_confirm":
-        if low in {"yes","y","confirm","ok"}:
-            SESS[from_wa] = {"state": None, "page": 1}
-            # Back to our new text-only main menu
-            return {"text": "❌ Order cancelled. You’re back at the main menu.\n\n" + main_menu_text()}
 
-        if low in {"no","n","back"}:
+    if sess.get("state") == "cancel_confirm":
+        if low in {"yes", "y", "confirm", "ok"}:
+            # Reset session and go back to main menu
+            SESS[from_wa] = {"state": None, "page": 1}
+            return {"text": "❌ Order cancelled. You’re back at the main menu.\n\n" + main_menu_text()}
+        if low in {"no", "n", "back"}:
             sess["state"] = sess.get("prev_state") or None
             prev_state = sess.get("prev_state")
-            if prev_state in {"await_confirm","edit_menu","edit_name","edit_phone","edit_county","edit_model"}:
+            if prev_state in {"await_confirm", "edit_menu", "edit_name", "edit_phone", "edit_county", "edit_model"}:
                 return {"text": "Okay — resuming your order.\n\n" + build_proforma_text(sess)}
             return {"text": "Okay — continue."}
 
     after_note = ("\n\n⏰ " + AFTER_HOURS_NOTE) if is_after_hours() else ""
 
+    # -------------------------
     # MAIN MENU (first interaction)
+    # -------------------------
     if low in {"", "hi", "hello", "start", "want", "incubator", "need an incubator"} and not sess.get("state"):
         return {"text": main_menu_text(after_note)}
-    # CHICKS FLOW (priority handler — catches "2" and any 'chicks' text)
+
+    # -------------------------
+    # CHICKS FLOW ENTRY (option 2 OR any text mentioning 'chick')
+    # This runs BEFORE generic 1–4 handling to avoid conflicts.
+    # -------------------------
     if not sess.get("state"):
         digits = re.sub(r"[^0-9]", "", low)
-        is_chicks = ("chick" in low)
+        is_chicks = "chick" in low  # matches chick / chicks / day old chicks etc.
 
         if digits == "2" or is_chicks:
             sess["state"] = "chicks_menu"
-            return {"text": (
-                "YES, we deal with quality chicks at different ages.\n"
-                "*Improved Kienyeji chicks*\n"
-                "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
-                "3 days → *Ksh100*\n"
-                "1 week → *Ksh130*\n"
-                "2 weeks → *Ksh160*\n"
-                "3 weeks → *Ksh200*\n"
-                "4 weeks → *Ksh230*\n\n"
-                "*LAYERS CHICKS*\n"
-                "1 DAY OLD → *Ksh160*\n"
-                "5 MONTHS OLD → *Ksh850*\n\n"
-                "If you like, I can share the *photos of different ages of chicks*.\n"
-                "Simply type: *PHOTOS*\n\n"
-                f"For more information on delivery, availability, pictures etc,\n"
-                f"please call us on: {CALL_LINE}\n"
-                "You can also visit our website:\n"
-                "https://neochickspoultry.com/kienyeji-farming/"
-            )}
-
-        
-            # TOP-LEVEL NUMBERED MAIN MENU (idle)
-    if not sess.get("state"):
-        # Extract digits so '1.', '1)', '1 -' still work
-        digits = re.sub(r"[^0-9]", "", low)
-
-        # 1️⃣ Incubators → behave exactly like "Incubator Prices 💰📦"
-        if digits == "1":
-            sess["state"] = "prices"
-            sess["page"] = 1
-            return {"text": price_page_text(page=1)}          
-
-        # 3️⃣ Fertilised eggs (placeholder)
-        if digits == "3":
-            return {"text": (
-                "🥚 *Fertilised Eggs*\n\n"
-                "Eggs menu is coming soon to this bot.\n"
-                f"For now, please call or WhatsApp {CALL_LINE} for current fertilised eggs prices."
-            )}
-
-        # 4️⃣ Cages & equipment (placeholder)
-        if digits == "4":
-            return {"text": (
-                "🪺 *Cages & Equipment*\n\n"
-                "Cages and equipment menu is coming soon.\n"
-                f"For inquiries, please call or WhatsApp {CALL_LINE} and mention cages/equipment."
-            )}
-
-        # CHICKS FLOW (option 2)
-        if not sess.get("state"):
-            # Detect numeric '2'
-            digits = re.sub(r"[^0-9]", "", low)
-            is_chicks_keyword = any(k in low for k in ["chick", "chicks", "day old"])
-    
-            if digits == "2" or is_chicks_keyword:
-                sess["state"] = "chicks_menu"
-                return {"text": (
+            return {
+                "text": (
                     "YES, we deal with quality chicks at different ages.\n"
                     "*Improved Kienyeji chicks*\n"
                     "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
@@ -782,42 +739,115 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                     f"please call us on: {CALL_LINE}\n"
                     "You can also visit our website:\n"
                     "https://neochickspoultry.com/kienyeji-farming/"
-                )}
+                )
+            }
 
-        # AGENT (explicit, matches button title + free text variants)
+    # -------------------------
+    # CHICKS PHOTOS (inside chicks_menu state)
+    # -------------------------
+    if sess.get("state") == "chicks_menu":
+        if "photo" in low or "photos" in low:
+            # You can replace these "(photo or link here)" placeholders
+            # with real image URLs, or keep text-only.
+            return {
+                "text": (
+                    "Great! Here are the *photos of chicks at different ages* 🐥\n\n"
+                    "3 Days Old chicks\n(photo or link here)\n\n"
+                    "1 Week Old chicks\n(photo or link here)\n\n"
+                    "2 Weeks Old chicks\n(photo or link here)\n\n"
+                    "3 Weeks Old chicks\n(photo or link here)\n\n"
+                    "4 Weeks Old chicks\n(photo or link here)\n\n"
+                    f"For more information on delivery, availability or ordering chicks, call us at {CALL_LINE}.\n"
+                    "You can also visit:\nhttps://neochickspoultry.com/kienyeji-farming/"
+                )
+            }
+        # If they type something else while in chicks_menu that we don't handle,
+        # just gently remind them about PHOTOS or MENU:
+        if low in {"menu", "main menu", "back"}:
+            SESS[from_wa] = {"state": None, "page": 1}
+            return {"text": main_menu_text(after_note)}
+        # Otherwise, fall through to generic logic only at the very end.
+
+    # -------------------------
+    # TOP-LEVEL NUMERIC HANDLING (1,3,4) when idle
+    # 1 = Incubators (prices flow)
+    # 2 handled ABOVE by chicks flow
+    # -------------------------
+    if not sess.get("state"):
+        digits = re.sub(r"[^0-9]", "", low)
+
+        # 1️⃣ Incubators → behave exactly like "Incubator Prices 💰📦"
+        if digits == "1":
+            sess["state"] = "prices"
+            sess["page"] = 1
+            return {"text": price_page_text(page=1)}
+
+        # 3️⃣ Fertile eggs (placeholder for now)
+        if digits == "3":
+            return {
+                "text": (
+                    "🥚 *Fertile Eggs*\n\n"
+                    "Fertile eggs menu is coming soon to this bot.\n"
+                    f"For now, please call or WhatsApp {CALL_LINE} for current fertile eggs prices."
+                )
+            }
+
+        # 4️⃣ Cages & equipment (placeholder for now)
+        if digits == "4":
+            return {
+                "text": (
+                    "🪺 *Cages & Equipment*\n\n"
+                    "Cages and equipment menu is coming soon.\n"
+                    f"For inquiries, please call or WhatsApp {CALL_LINE} and mention cages/equipment."
+                )
+            }
+
+    # -------------------------
+    # AGENT (explicit, matches button title + free text variants)
+    # -------------------------
     if any(kw in low for kw in {
         "talk to an agent", "speak to an agent", "agent", "human", "representative",
         "talk to a rep", "customer care", "customer support"
     }):
-        # clear transient flow and hand off
         SESS[from_wa] = {"state": None, "page": 1}
         return {"text": "👩🏽‍💼 Connecting you to a Neochicks rep… You can also call " + CALL_LINE + "."}
-        # INCUBATOR ISSUES (explicit match for the button title + heuristics)
+
+    # -------------------------
+    # INCUBATOR ISSUES (explicit match + heuristics)
+    # -------------------------
     if ("incubator issues" in low) or any(k in low for k in [
         "troubleshoot", "hatch rate", "problem", "fault", "issue", "issues", "help with incubator"
     ]):
         sess["state"] = None
-        return {"text": (
-            "🛠️ Quick checks for better hatching:\n"
-            "1) Temperature 37.8°C (±0.2)\n"
-            "2) Humidity 55–60% set / ~65% at hatch\n"
-            "3) Turning 3–5×/day (auto OK)\n"
-            "4) Candle day 7 & 14; remove clears\n"
-            "5) Ventilation okay (no drafts)\n"
-            "6) Disinfect after each hatch\n\n"
-            f"For urgent help, call {CALL_LINE}."
-        )}
+        return {
+            "text": (
+                "🛠️ Quick checks for better hatching:\n"
+                "1) Temperature 37.8°C (±0.2)\n"
+                "2) Humidity 55–60% set / ~65% at hatch\n"
+                "3) Turning 3–5×/day (auto OK)\n"
+                "4) Candle day 7 & 14; remove clears\n"
+                "5) Ventilation okay (no drafts)\n"
+                "6) Disinfect after each hatch\n\n"
+                f"For urgent help, call {CALL_LINE}."
+            )
+        }
 
-    # PRICES
+    # -------------------------
+    # INCUBATOR PRICES FLOW
+    # -------------------------
     if any(k in low for k in ["capacities", "capacity", "capacities with prices", "prices", "price", "bei", "gharama"]):
-        sess["state"] = "prices"; sess["page"] = 1
+        sess["state"] = "prices"
+        sess["page"] = 1
         return {"text": price_page_text(page=1)}
-    if sess.get("state") == "prices" and low in {"next","more"}:
+
+    if sess.get("state") == "prices" and low in {"next", "more"}:
         sess["page"] += 1
         return {"text": price_page_text(page=sess["page"])}
-    if sess.get("state") == "prices" and low in {"back","prev","previous"}:
+
+    if sess.get("state") == "prices" and low in {"back", "prev", "previous"}:
         sess["page"] = max(1, sess["page"] - 1)
         return {"text": price_page_text(page=sess["page"])}
+
     if sess.get("state") == "prices":
         m = re.search(r"([0-9]{2,5})", low)
         if m:
@@ -826,16 +856,30 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             if p:
                 extra = " (Solar)" if p["solar"] else ""
                 gen = "\n🎁 Includes *Free Backup Generator*" if p["free_gen"] else ""
-                out = {"text": "📦 *" + p['name'] + "*" + extra + "\nCapacity: " + str(p['capacity']) + " eggs\nPrice: " + ksh(p['price']) + gen}
+                out = {
+                    "text": (
+                        "📦 *" + p["name"] + "*" + extra +
+                        "\nCapacity: " + str(p["capacity"]) + " eggs\nPrice: " + ksh(p["price"]) + gen
+                    )
+                }
                 if p.get("image"):
-                    out.update({"mediaUrl": p["image"], "caption": p['name'] + " — " + ksh(p['price']) + "\n\n -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - \nReply with your *county* and I will tell you how long it takes to deliver there 🙏" + PAYMENT_NOTE + "."})
+                    out.update({
+                        "mediaUrl": p["image"],
+                        "caption": (
+                            p["name"] + " — " + ksh(p["price"]) +
+                            "\n\n -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - \n"
+                            "Reply with your *county* and I will tell you how long it takes to deliver there 🙏"
+                            + PAYMENT_NOTE + "."
+                        )
+                    })
                 sess["last_product"] = p
                 return out
 
+    # -------------------------
     # DELIVERY → COUNTY → NAME → PHONE → PRO-FORMA
+    # -------------------------
     if ("delivery" in low) or ("deliver" in low) or ("delivery terms" in low):
-        # sess["state"] = "await_county"
-        return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. " + PAYMENT_NOTE }
+        return {"text": "🚚 Delivery terms: Nairobi → same day; other counties → 24 hours. " + PAYMENT_NOTE}
 
     if sess.get("state") == "await_county":
         county = re.sub(r"[^a-z ]", "", low).strip()
@@ -845,7 +889,12 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["last_county"] = county.title()
         sess["last_eta"] = eta
         sess["state"] = "await_name"
-        return {"text": f"📍 {county.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nGreat! Please share your *full name* for the pro-forma."}
+        return {
+            "text": (
+                f"📍 {county.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\n"
+                "Great! Please share your *full name* for the pro-forma."
+            )
+        }
 
     if sess.get("state") == "await_name":
         name = t.strip()
@@ -860,25 +909,30 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         if len(re.sub(r"\D", "", phone)) < 9:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
         sess["customer_phone"] = phone
-        # ---- leads capture (new) ----
         _leads_add(
             wa_from=from_wa,
-            name=sess.get("customer_name",""),
+            name=sess.get("customer_name", ""),
             phone=phone,
-            county=sess.get("last_county",""),
+            county=sess.get("last_county", ""),
             intent="new_phone",
-            last_text=t
+            last_text=t,
         )
         sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
-    # EDIT flow
+    # -------------------------
+    # EDIT FLOW
+    # -------------------------
     if sess.get("state") == "await_confirm" and "edit" in low:
         sess["state"] = "edit_menu"
-        return {"text": ("What would you like to change?\n"
-                         "1) Name\n2) Phone\n3) County\n4) Model (capacity)\n\n"
-                         "Reply with *1, 2, 3,* or *4*.\n"
-                         "Or type *CANCEL* to discard and go back to the main menu.")}
+        return {
+            "text": (
+                "What would you like to change?\n"
+                "1) Name\n2) Phone\n3) County\n4) Model (capacity)\n\n"
+                "Reply with *1, 2, 3,* or *4*.\n"
+                "Or type *CANCEL* to discard and go back to the main menu."
+            )
+        }
 
     if sess.get("state") == "edit_menu":
         choice = re.sub(r"[^0-9a-z ]", "", low).strip()
@@ -909,14 +963,13 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         if len(re.sub(r"\D", "", phone)) < 9:
             return {"text": "That phone seems short. Please type a valid phone (e.g., 07XX... or +2547...)."}
         sess["customer_phone"] = phone
-        # ---- leads capture (edited phone) ----
         _leads_add(
             wa_from=from_wa,
-            name=sess.get("customer_name",""),
+            name=sess.get("customer_name", ""),
             phone=phone,
-            county=sess.get("last_county",""),
+            county=sess.get("last_county", ""),
             intent="edit_phone",
-            last_text=t
+            last_text=t,
         )
         sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
@@ -943,7 +996,9 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         sess["state"] = "await_confirm"
         return {"text": build_proforma_text(sess)}
 
-    # CONFIRM: allow whitespace and case-insensitive
+    # -------------------------
+    # CONFIRM (same logic as your original)
+    # -------------------------
     if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
         p = sess.get("last_product") or {}
         county = sess.get("last_county", "-")
@@ -964,7 +1019,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             "created_at_utc": created_at.isoformat() + "Z",
         }
 
-        # email notify
+        # Notify by email
         subject = f"ORDER CONFIRMED — {order['model']} for {order['customer_name']} ({order_id})"
         body = (
             f"New order confirmation from WhatsApp bot\n\n"
@@ -981,7 +1036,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         )
         send_email(subject, body)
 
-        # generate and persist PDF
+        # Generate & store PDF
         INVOICES[order_id] = order
         pdf_bytes = b""
         try:
@@ -995,7 +1050,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
         _cleanup_invoices()
 
-        # WhatsApp: send via media upload (fallbacks to link/text)
+        # WhatsApp: send via media upload (fallback to link/text)
         media_id = upload_media_pdf(pdf_bytes or b"", f"{order_id}.pdf")
         if media_id:
             try:
@@ -1024,30 +1079,37 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 except Exception:
                     app.logger.exception("Fallback text send failed")
 
-        # ---- leads capture (confirmed order) ----
         _leads_add(
             wa_from=from_wa,
             name=order["customer_name"],
             phone=order["customer_phone"],
             county=order["county"],
             intent="confirmed",
-            last_text=order["model"]
+            last_text=order["model"],
         )
 
-        # reset session
         SESS[from_wa] = {"state": None, "page": 1}
         return {"text": "✅ Order confirmed! I’ve sent your pro-forma invoice. Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
 
-    # County guess (stateless)
+    # -------------------------
+    # County guess (stateless helper)
+    # -------------------------
     c_guess = guess_county(low)
     if c_guess:
         eta = delivery_eta_text(c_guess)
         sess["last_county"] = c_guess.title()
         sess["last_eta"] = eta
         sess["state"] = "await_name"
-        return {"text": f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\nGreat! Please share your *full name* for the pro-forma."}
+        return {
+            "text": (
+                f"📍 {c_guess.title()} → Typical delivery {eta}. {PAYMENT_NOTE}.\n"
+                "Great! Please share your *full name* for the pro-forma."
+            )
+        }
 
+    # -------------------------
     # Fallback → show main menu again
+    # -------------------------
     return {"text": "I didn’t quite get that.\n\n" + main_menu_text(after_note)}
 
 
