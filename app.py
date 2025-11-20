@@ -118,7 +118,7 @@ def is_after_hours():
 def delivery_eta_text(county: str) -> str:
     key = (county or "").strip().lower().split()[0] if county else ""
     return "same day" if key == "nairobi" else "24 hours"
-
+Near where you defined main_menu_text / catalog / chicks, add this function:
 MENU_BUTTONS = [
     "Incubator Prices 💰📦",
     "Delivery Terms 🚚",
@@ -139,6 +139,19 @@ def main_menu_text(after_note: str = "") -> str:
         "4️⃣ *Cages & Equipment* 🪺\n\n"
         "Reply with one of the *numbers above* or type what you need🙏.\n"
         f"☎️ {CALL_LINE}" + after_note
+    )
+def fertile_eggs_text() -> str:
+    return (
+        "YES, we also supply quality *fertile eggs for incubation* 🥚\n\n"
+        "*Improved Kienyeji Fertile Eggs*\n"
+        "• (Sasso, Kari, Kenbro, Kuroiler and Rainbow Rooster)\n"
+        "• (1 tray (30 eggs) → *Ksh900*)\n\n"
+        "If you like, I can share *photos of our Different breeds of mature chickens*.\n"
+        "Simply type: *PHOTOS*\n\n"
+        f"For more information on delivery, availability, pictures etc,\n"
+        f"please call us on: {CALL_LINE}\n"
+        "You can also visit our website:\n"
+        "https://neochickspoultry.com/kienyeji-farming/"
     )
 
 CATALOG = [
@@ -749,11 +762,13 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             return {
                 "text": (
                     "Great! Here are the *photos of chicks at different ages* 🐥\n\n"
-                    "3 Days Old chicks\n(photo or link here)\n\n"
-                    "1 Week Old chicks\n(photo or link here)\n\n"
-                    "2 Weeks Old chicks\n(photo or link here)\n\n"
-                    "3 Weeks Old chicks\n(photo or link here)\n\n"
-                    "4 Weeks Old chicks\n(photo or link here)\n\n"
+                    "3 Days Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/Day-Old-Kienyeji.jpg)\n\n"
+                    "1 Week Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/One-week-old.jpg)\n\n"
+                    "2 Weeks Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/two-weeks-old-kienyeji.jpg)\n\n"
+                    "3 Weeks Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/3-weeks-old.jpg)\n\n"
+                    "4 Weeks Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/one-month-old-kienyeji.jpg)\n\n"
+                    "Day old layers\n(https://neochickspoultry.com/wp-content/uploads/2025/11/Day-old-layers.jpg)\n\n"
+                    "Mature layers\n(https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg)\n\n"
                     f"For more information on delivery, availability or ordering chicks, call us at {CALL_LINE}.\n"
                     "You can also visit:\nhttps://neochickspoultry.com/kienyeji-farming/"
                 )
@@ -764,7 +779,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             SESS[from_wa] = {"state": None, "page": 1}
             return {"text": main_menu_text(after_note)}
         # Otherwise, fall through to generic logic only at the very end.
-
+    
     # -------------------------
     # TOP-LEVEL NUMERIC HANDLING (1,3,4) when idle
     # 1 = Incubators (prices flow)
@@ -772,22 +787,28 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     # -------------------------
     if not sess.get("state"):
         digits = re.sub(r"[^0-9]", "", low)
+        
 
         # 1️⃣ Incubators → behave exactly like "Incubator Prices 💰📦"
         if digits == "1":
             sess["state"] = "prices"
             sess["page"] = 1
             return {"text": price_page_text(page=1)}
+            
+        # 3️⃣ Fertile eggs
+        eggs_phrases = [
+            "fertile eggs",
+            "fertilised eggs",
+            "fertilized eggs",
+            "kienyeji eggs",
+            "eggs for incubation",
+        ]
+        is_eggs = any(phrase in low for phrase in eggs_phrases)
 
-        # 3️⃣ Fertile eggs (placeholder for now)
-        if digits == "3":
-            return {
-                "text": (
-                    "🥚 *Fertile Eggs*\n\n"
-                    "Fertile eggs menu is coming soon to this bot.\n"
-                    f"For now, please call or WhatsApp {CALL_LINE} for current fertile eggs prices."
-                )
-            }
+        if digits == "3" or is_eggs:
+            sess["state"] = "eggs_menu"
+            return {"text": fertile_eggs_text()}
+    
 
         # 4️⃣ Cages & equipment (placeholder for now)
         if digits == "4":
@@ -798,6 +819,22 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                     f"For inquiries, please call or WhatsApp {CALL_LINE} and mention cages/equipment."
                 )
             }
+        # FERTILE EGGS PHOTOS (after entering eggs_menu)
+    if sess.get("state") == "eggs_menu":
+        if "photo" in low or "photos" in low:
+            return {
+                "text": (
+                    "Great! Here are some *example photos of our fertile eggs and packaging* 🥚\n\n"
+                    "Fertile Kienyeji Eggs\n(photo or link here)\n\n"
+                    "Fertile Layers Eggs\n(photo or link here)\n\n"
+                    f"For more information on delivery, availability or ordering fertile eggs, call us at {CALL_LINE}.\n"
+                    "You can also visit:\nhttps://neochickspoultry.com/kienyeji-farming/"
+                )
+            }
+
+        if low in {"menu", "main menu", "back"}:
+            SESS[from_wa] = {"state": None, "page": 1}
+            return {"text": main_menu_text()}
 
     # -------------------------
     # AGENT (explicit, matches button title + free text variants)
