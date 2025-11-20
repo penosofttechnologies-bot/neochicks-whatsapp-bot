@@ -738,6 +738,33 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 f"For inquiries, please call or WhatsApp {CALL_LINE} and mention cages/equipment."
             )}
 
+        # CHICKS FLOW (option 2)
+        if not sess.get("state"):
+            # Detect numeric '2'
+            digits = re.sub(r"[^0-9]", "", low)
+            is_chicks_keyword = any(k in low for k in ["chick", "chicks", "day old"])
+    
+            if digits == "2" or is_chicks_keyword:
+                sess["state"] = "chicks_menu"
+                return {"text": (
+                    "YES, we deal with quality chicks at different ages.\n"
+                    "*Improved Kienyeji chicks*\n"
+                    "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
+                    "3 days → *Ksh100*\n"
+                    "1 week → *Ksh130*\n"
+                    "2 weeks → *Ksh160*\n"
+                    "3 weeks → *Ksh200*\n"
+                    "4 weeks → *Ksh230*\n\n"
+                    "*LAYERS CHICKS*\n"
+                    "1 DAY OLD → *Ksh160*\n"
+                    "5 MONTHS OLD → *Ksh850*\n\n"
+                    "If you like, I can share the *photos of different ages of chicks*.\n"
+                    "Simply type: *PHOTOS*\n\n"
+                    f"For more information on delivery, availability, pictures etc,\n"
+                    f"please call us on: {CALL_LINE}\n"
+                    "You can also visit our website:\n"
+                    "https://neochickspoultry.com/kienyeji-farming/"
+                )}
 
         # AGENT (explicit, matches button title + free text variants)
     if any(kw in low for kw in {
