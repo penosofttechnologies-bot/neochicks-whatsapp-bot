@@ -1,7 +1,7 @@
 """
 Neochicks WhatsApp Bot (DB-free, robust PDF delivery)
 
-- No DB: stores order details in memory and writes PDFs to /tmp.
+- No DB: stores order details in memory and writes PDFs to /tmp. 
 - Full catalog preserved.
 - EDIT flow (name/phone/county/model) included.
 - Sends invoice PDFs to WhatsApp by uploading media first (media_id), with link/text fallbacks.
