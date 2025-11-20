@@ -1103,9 +1103,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         }
 
     # -------------------------
-    # Fallback → show main menu again
-    # -------------------------
+# Fallback → show main menu again
+    SESS[from_wa] = {"state": None, "page": 1}
     return {"text": "I didn’t quite get that.\n\n" + main_menu_text(after_note)}
+
 
 
 # -------------------------
