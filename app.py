@@ -823,7 +823,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg",
                 "Mature Layers 🐔"
             )
-
+            SESS[from_wa] = {"state": None, "page": 1}
             # 3) Final text
             return {
                 "text": (
@@ -888,7 +888,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/Rainbow-rooster.jpg",
                 "Our Rainbow Rooster Breed"
             )
-        
+                # ✅ CLEAR STATE AFTER PHOTOS
+            SESS[from_wa] = {"state": None, "page": 1}
             return {"text": f"📸For more information on eggs delivery, availability etc,\n"
             f"please call us on: {CALL_LINE}\n"
             "You can also visit our website:\n"
