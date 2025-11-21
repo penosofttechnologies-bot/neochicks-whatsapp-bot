@@ -744,7 +744,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             return {"text": fertile_eggs_text()}
         # CHICKS GLOBAL JUMP
         chicks_phrases = [
-            "chicks","chick","day old","day-old","kienyeji chicks"
+            "day old","day-old","kienyeji chicks", "one month old", "one week old", "two weeks old"
         ]
         if digits == "2" or any(p in low for p in chicks_phrases):
             sess["state"] = "chicks_menu"
@@ -795,7 +795,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             sess["state"] = "chicks_menu"
             return {
                 "text": (
-                    "YES, we deal with quality chicks at different ages.\n"
+                    "We deal with quality chicks at different ages.\n"
                     "*Improved Kienyeji chicks*\n"
                     "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
                     "3 days → *Ksh100*\n"
