@@ -130,18 +130,18 @@ def main_menu_text(after_note: str = "") -> str:
     """
     return (
         "🐣 Karibu *Neochicks Ltd.*\n"
-        "The leading incubators supplier in Kenya and East Africa.\n"
+        "The leading dealer in Poultry Farming Services.\n"
         "Please choose what you are interested in:\n\n"
         "1️⃣ *Incubators* 🌡️\n"
         "2️⃣ *Chicks* 🐥\n"
         "3️⃣ *Fertile Eggs* 🥚\n"
         "4️⃣ *Cages & Equipment* 🪺\n\n"
-        "Reply with one of the *numbers above* or type what you need🙏.\n"
+        "Reply with one of the *numbers above* and I will guide you🙏.\n"
         f"☎️ {CALL_LINE}" + after_note
     )
 def fertile_eggs_text() -> str:
     return (
-        "YES, we also supply quality *fertile eggs for incubation* 🥚\n\n"
+        "We supply quality *fertile eggs for incubation* 🥚\n\n"
         "*Improved Kienyeji Fertile Eggs*\n"
         "• (Sasso, Kari, Kenbro, Kuroiler and Rainbow Rooster)\n"
         "• (1 tray (30 eggs) → *Ksh900*)\n\n"
@@ -789,7 +789,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         
 
         # 1️⃣ Incubators → behave exactly like "Incubator Prices 💰📦"
-        if digits == "1":
+        if digits == "1" or "incubator" in low:
             sess["state"] = "prices"
             sess["page"] = 1
             return {"text": price_page_text(page=1)}
