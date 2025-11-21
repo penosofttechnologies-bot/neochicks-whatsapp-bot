@@ -726,85 +726,105 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
     # -------------------------
     # CHICKS FLOW ENTRY (option 2 OR any text mentioning 'chick')
-    # This runs BEFORE generic 1–4 handling to avoid conflicts.
-    # -------------------------
-            # 2️⃣ Day-old chicks
-    if digits == "2" or "chick" in low:
-        sess["state"] = "chicks_menu"
-        return {"text": (
-            "YES, we deal with quality chicks at different ages.\n"
-            "*Improved Kienyeji chicks*\n"
-            "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
-            "3 days → *Ksh100*\n"
-            "1 week → *Ksh130*\n"
-            "2 weeks → *Ksh160*\n"
-            "3 weeks → *Ksh200*\n"
-            "4 weeks → *Ksh230*\n\n"
-            "*LAYERS CHICKS*\n"
-            "1 DAY OLD → *Ksh160*\n"
-            "5 MONTHS OLD → *Ksh850*\n\n"
-            "If you like, I can share the *photos of different ages of chicks*.\n"
-            "Simply type: *PHOTOS*\n\n"
-            f"For more information on delivery, availability, pictures etc,\n"
-            f"please call us on: {CALL_LINE}\n"
-            "You can also visit our website:\n"
-            "https://neochickspoultry.com/kienyeji-farming/"
-        )}
 
     # -------------------------
-    # CHICKS PHOTOS (inside chicks_menu state)
+    # TOP-LEVEL NUMERIC HANDLING (1,3,4) when idle
+    # 1 = Incubators (prices flow)
+    # 2 handled ABOVE by chicks flow
     # -------------------------
+        # TOP-LEVEL NUMBERED MAIN MENU (idle)
+    if not sess.get("state"):
+        # digits was defined at top of brain_reply: digits = re.sub(r"[^0-9]", "", low)
+
+        # 1️⃣ Incubators
+        if digits == "1":
+            sess["state"] = "prices"
+            sess["page"] = 1
+            return {"text": price_page_text(page=1)}
+
+        # 2️⃣ Chicks → enter chicks_menu state
+        chicks_triggers = [
+            "chick",
+            "chicks",
+            "old chicks",
+            "old chicken",
+            "improved kienyeji",
+        ]
+        is_chicks = any(phrase in low for phrase in chicks_triggers)
+
+        if digits == "2" or is_chicks:
+            sess["state"] = "chicks_menu"
+            return {
+                "text": (
+                    "YES, we deal with quality chicks at different ages.\n"
+                    "*Improved Kienyeji chicks*\n"
+                    "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
+                    "3 days → *Ksh100*\n"
+                    "1 week → *Ksh130*\n"
+                    "2 weeks → *Ksh160*\n"
+                    "3 weeks → *Ksh200*\n"
+                    "4 weeks → *Ksh230*\n\n"
+                    "*LAYERS CHICKS*\n"
+                    "1 DAY OLD → *Ksh160*\n"
+                    "5 MONTHS OLD → *Ksh850*\n\n"
+                    "If you like, I can share the *photos of different ages of chicks*.\n"
+                    "Simply type: *PHOTOS*\n\n"
+                    f"For more information on delivery, availability, pictures etc,\n"
+                    f"please call us on: {CALL_LINE}\n"
+                    "You can also visit our website:\n"
+                    "https://neochickspoultry.com/kienyeji-farming/"
+                )
+            }
+                # CHICKS PHOTOS (stateful: only when in chicks_menu)
     if sess.get("state") == "chicks_menu":
-    # CHICKS PHOTOS (stateless)
-        if ("photo" in low or "photos" in low) and ("chick" in low):
-            
-            # 1️⃣ Send text FIRST
+        if "photo" in low or "photos" in low:
+            # 1) Text first
             send_text(from_wa, "📸 *Here are the photos of chicks at different ages:* 🐥")
-        
-            # 2️⃣ Send each photo individually in sequence
+
+            # 2) Images one by one
             send_image(
                 from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/Day-Old-Kienyeji.jpg",
                 "3 Days Old Kienyeji Chicks 🐥"
             )
-        
+
             send_image(
                 from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/One-week-old.jpg",
                 "1 Week Old Chicks 🐥"
             )
-        
+
             send_image(
                 from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/two-weeks-old-kienyeji.jpg",
                 "2 Weeks Old Chicks 🐥"
             )
-        
+
             send_image(
                 from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/3-weeks-old.jpg",
                 "3 Weeks Old Chicks 🐥"
             )
-        
+
             send_image(
                 from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/one-month-old-kienyeji.jpg",
                 "4 Weeks Old Chicks 🐥"
             )
-        
+
             send_image(
                 from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/Day-old-layers.jpg",
                 "Day-old Layers 🐥"
             )
-        
+
             send_image(
                 from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg",
                 "Mature Layers 🐔"
             )
 
-    # 3️⃣ Ending text (optional)
+            # 3) Final text
             return {
                 "text": (
                     f"For more information on delivery, availability, or more pictures,\n"
@@ -814,28 +834,13 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 )
             }
 
-        # If they type something else while in chicks_menu that we don't handle,
-        # just gently remind them about PHOTOS or MENU:
+        # allow exiting the chicks flow
         if low in {"menu", "main menu", "back"}:
             SESS[from_wa] = {"state": None, "page": 1}
             return {"text": main_menu_text(after_note)}
-        # Otherwise, fall through to generic logic only at the very end.
-    
-    # -------------------------
-    # TOP-LEVEL NUMERIC HANDLING (1,3,4) when idle
-    # 1 = Incubators (prices flow)
-    # 2 handled ABOVE by chicks flow
-    # -------------------------
-    if not sess.get("state"):
-        digits = re.sub(r"[^0-9]", "", low)
-        
 
-        # 1️⃣ Incubators → behave exactly like "Incubator Prices 💰📦"
-        if digits == "1" or "incubator" in low:
-            sess["state"] = "prices"
-            sess["page"] = 1
-            return {"text": price_page_text(page=1)}
-            
+
+
         # 3️⃣ Fertile eggs
         eggs_phrases = [
             "fertile eggs",
