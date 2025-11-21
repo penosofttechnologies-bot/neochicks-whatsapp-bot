@@ -805,14 +805,14 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             )
 
     # 3️⃣ Ending text (optional)
-    return {
-        "text": (
-            f"For more information on delivery, availability, or more pictures,\n"
-            f"please call us on: {CALL_LINE}\n\n"
-            "You can also *order chicks online* using the link below:\n"
-            "https://neochickspoultry.com/chicks-booking/"
-        )
-    }
+            return {
+                "text": (
+                    f"For more information on delivery, availability, or more pictures,\n"
+                    f"please call us on: {CALL_LINE}\n\n"
+                    "You can also *order chicks online* using the link below:\n"
+                    "https://neochickspoultry.com/chicks-booking/"
+                )
+            }
 
         # If they type something else while in chicks_menu that we don't handle,
         # just gently remind them about PHOTOS or MENU:
