@@ -152,6 +152,26 @@ def fertile_eggs_text() -> str:
         "You can also visit our website:\n"
         "https://neochickspoultry.com/kienyeji-farming/"
     )
+def chicks_info_text() -> str:
+    return (
+        "We deal with quality chicks at different ages.\n"
+        "*Improved Kienyeji chicks*\n"
+        "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
+        "3 days → *Ksh100*\n"
+        "1 week → *Ksh130*\n"
+        "2 weeks → *Ksh160*\n"
+        "3 weeks → *Ksh200*\n"
+        "4 weeks → *Ksh230*\n\n"
+        "*LAYERS CHICKS*\n"
+        "1 DAY OLD → *Ksh160*\n"
+        "5 MONTHS OLD → *Ksh850*\n\n"
+        "If you like, I can share the *photos of different ages of chicks*.\n\n"
+        "Simply type: *PHOTOS*\n\n"
+        f"For more information on delivery, availability, pictures etc,\n"
+        f"please call us on: {CALL_LINE}\n"
+        "You can also visit our website:\n"
+        "https://neochickspoultry.com/kienyeji-farming/"
+    )
 
 CATALOG = [
     {"name":"56 Eggs","capacity":56,"price":13000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2018/12/56-Eggs-solar-electric-incubator-1-600x449.png"},
