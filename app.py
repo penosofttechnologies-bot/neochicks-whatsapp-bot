@@ -756,8 +756,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     # -------------------------
     if sess.get("state") == "chicks_menu":
         if "photo" in low or "photos" in low:
-            # You can replace these "(photo or link here)" placeholders
-            # with real image URLs, or keep text-only.
             return {
                 "text": (
                     "Great! Here are the *photos of chicks at different ages* 🐥\n\n"
@@ -768,8 +766,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                     "4 Weeks Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/one-month-old-kienyeji.jpg)\n\n"
                     "Day old layers\n(https://neochickspoultry.com/wp-content/uploads/2025/11/Day-old-layers.jpg)\n\n"
                     "Mature layers\n(https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg)\n\n"
-                    f"For more information on delivery, availability or ordering chicks, call us at {CALL_LINE}.\n"
-                    "You can also visit:\nhttps://neochickspoultry.com/kienyeji-farming/"
+                    f"For more information on delivery, availability, more pictures etc,\n"
+                    f"please call us on: {CALL_LINE}\n"
+                    "You can also Order Chicks by clicking the below linke:\n\n"
+                    "https://neochickspoultry.com/chicks-booking/"
                 )
             }
         # If they type something else while in chicks_menu that we don't handle,
@@ -820,18 +820,32 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             }
         # FERTILE EGGS PHOTOS (after entering eggs_menu)
     if sess.get("state") == "eggs_menu":
-        if "photo" in low or "photos" in low:
-            return {
-                "text": (
-                    "Great! Here are some *example photos of our fertile eggs and packaging* 🥚\n\n"
-                    "Our Kari Chicken\nhttps://neochickspoultry.com/wp-content/uploads/2025/11/Kari-scaled.jpg\n\n"
-                    "Our Kenbro Chicken\nhttps://neochickspoultry.com/wp-content/uploads/2025/11/Kenbro-scaled.jpg\n\n"
-                    "Our Kuroiler Chicken\nhttps://neochickspoultry.com/wp-content/uploads/2025/11/Kuroilers.jpg\n\n"
-                    "Our Rainbow Rooster Chicken\nhttps://neochickspoultry.com/wp-content/uploads/2025/11/Rainbow-rooster.jpg\n\n"
-                    f"For more information on delivery, availability or ordering fertile eggs, call us at {CALL_LINE}.\n"
-                    "You can also visit:\nhttps://neochickspoultry.com/kienyeji-farming/"
-                )
-            }
+        if ("photo" in low or "photos" in low) and any(p in low for p in eggs_triggers):
+            send_text(from_wa, "📸 *Here are the Photos of our Mature Laying Chicken:*\n\n")
+            send_image(from_wa,
+                "https://neochickspoultry.com/wp-content/uploads/2025/11/Kari-scaled.jpg",
+                "Kienyeji Fertile Eggs 🥚"
+            )
+        
+            send_image(from_wa,
+                "https://neochickspoultry.com/wp-content/uploads/2025/11/Kenbro-scaled.jpg",
+                "Kenbro Fertile Eggs 🥚"
+            )
+        
+            send_image(from_wa,
+                "https://neochickspoultry.com/wp-content/uploads/2025/11/Kuroilers.jpg",
+                "Kuroiler Fertile Eggs 🥚"
+            )
+        
+            send_image(from_wa,
+                "https://neochickspoultry.com/wp-content/uploads/2025/11/Rainbow-rooster.jpg",
+                "Rainbow Rooster Fertile Eggs 🥚"
+            )
+        
+            return {"text": f"📸For more information on eggs delivery, availability etc,\n"
+            f"please call us on: {CALL_LINE}\n"
+            "You can also visit our website:\n"
+            "https://neochickspoultry.com/kienyeji-farming/"}
 
         if low in {"menu", "main menu", "back"}:
             SESS[from_wa] = {"state": None, "page": 1}
