@@ -683,6 +683,7 @@ def _leads_add(wa_from: str, name: str, phone: str, county: str, intent: str, la
 # -------------------------
 # Brain / router
 # -------------------------
+
 def brain_reply(text: str, from_wa: str = "") -> dict:
     t = (text or "").strip()
     low = t.lower()
@@ -690,10 +691,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     print("DEBUG STATE BEFORE:", sess)
 
     digits = re.sub(r"[^0-9]", "", low)
-
+    after_note = ("\n\n⏰ " + AFTER_HOURS_NOTE) if is_after_hours() else ""
 
     # -------------------------
-    # CANCEL flow
+    # CANCEL / MENU in order flows only
     # -------------------------
     if any(k in low for k in ["cancel", "stop", "abort", "start over", "back to menu", "main menu", "menu"]) and \
        sess.get("state") in {
@@ -708,9 +709,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
     if sess.get("state") == "cancel_confirm":
         if low in {"yes", "y", "confirm", "ok"}:
-            # Reset session and go back to main menu
             SESS[from_wa] = {"state": None, "page": 1}
-            return {"text": "❌ Order cancelled. You’re back at the main menu.\n\n" + main_menu_text()}
+            return {"text": "❌ Order cancelled. You’re back at the main menu.\n\n" + main_menu_text(after_note)}
         if low in {"no", "n", "back"}:
             sess["state"] = sess.get("prev_state") or None
             prev_state = sess.get("prev_state")
@@ -718,192 +718,10 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 return {"text": "Okay — resuming your order.\n\n" + build_proforma_text(sess)}
             return {"text": "Okay — continue."}
 
-    after_note = ("\n\n⏰ " + AFTER_HOURS_NOTE) if is_after_hours() else ""
-
     # -------------------------
-    # MAIN MENU (first interaction)
+    # GLOBAL COMMANDS (work from any state)
     # -------------------------
-    if low in {"", "hi", "hello", "start", "want", "incubator", "need an incubator"} and not sess.get("state"):
-        return {"text": main_menu_text(after_note)}
-
-    # -------------------------
-    # CHICKS FLOW ENTRY (option 2 OR any text mentioning 'chick')
-
-    # -------------------------
-    # TOP-LEVEL NUMERIC HANDLING (1,3,4) when idle
-    # 1 = Incubators (prices flow)
-    # 2 handled ABOVE by chicks flow
-    # -------------------------
-        # TOP-LEVEL NUMBERED MAIN MENU (idle)
-    if not sess.get("state"):
-        # digits was defined at top of brain_reply: digits = re.sub(r"[^0-9]", "", low)
-
-        # 1️⃣ Incubators
-        if digits == "1":
-            sess["state"] = "prices"
-            sess["page"] = 1
-            return {"text": price_page_text(page=1)}
-
-        # 2️⃣ Chicks → enter chicks_menu state
-        chicks_triggers = [
-            "chick",
-            "chicks",
-            "old chicks",
-            "old chicken",
-            "improved kienyeji",
-        ]
-        is_chicks = any(phrase in low for phrase in chicks_triggers)
-
-        if digits == "2" or is_chicks:
-            sess["state"] = "chicks_menu"
-            return {
-                "text": (
-                    "YES, we deal with quality chicks at different ages.\n"
-                    "*Improved Kienyeji chicks*\n"
-                    "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
-                    "3 days → *Ksh100*\n"
-                    "1 week → *Ksh130*\n"
-                    "2 weeks → *Ksh160*\n"
-                    "3 weeks → *Ksh200*\n"
-                    "4 weeks → *Ksh230*\n\n"
-                    "*LAYERS CHICKS*\n"
-                    "1 DAY OLD → *Ksh160*\n"
-                    "5 MONTHS OLD → *Ksh850*\n\n"
-                    "If you like, I can share the *photos of different ages of chicks*.\n"
-                    "Simply type: *PHOTOS*\n\n"
-                    f"For more information on delivery, availability, pictures etc,\n"
-                    f"please call us on: {CALL_LINE}\n"
-                    "You can also visit our website:\n"
-                    "https://neochickspoultry.com/kienyeji-farming/"
-                )
-            }
-                # CHICKS PHOTOS (stateful: only when in chicks_menu)
-    if sess.get("state") == "chicks_menu":
-        if "photo" in low or "photos" in low:
-            # 1) Text first
-            send_text(from_wa, "📸 *Here are the photos of chicks at different ages:* 🐥")
-
-            # 2) Images one by one
-            send_image(
-                from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/Day-Old-Kienyeji.jpg",
-                "3 Days Old Kienyeji Chicks 🐥"
-            )
-
-            send_image(
-                from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/One-week-old.jpg",
-                "1 Week Old Chicks 🐥"
-            )
-
-            send_image(
-                from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/two-weeks-old-kienyeji.jpg",
-                "2 Weeks Old Chicks 🐥"
-            )
-
-            send_image(
-                from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/3-weeks-old.jpg",
-                "3 Weeks Old Chicks 🐥"
-            )
-
-            send_image(
-                from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/one-month-old-kienyeji.jpg",
-                "4 Weeks Old Chicks 🐥"
-            )
-
-            send_image(
-                from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/Day-old-layers.jpg",
-                "Day-old Layers 🐥"
-            )
-
-            send_image(
-                from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg",
-                "Mature Layers 🐔"
-            )
-            SESS[from_wa] = {"state": None, "page": 1}
-            # 3) Final text
-            return {
-                "text": (
-                    f"For more information on delivery, availability, or more pictures,\n"
-                    f"please call us on: {CALL_LINE}\n\n"
-                    "You can also *order chicks online* using the link below:\n"
-                    "https://neochickspoultry.com/chicks-booking/"
-                )
-            }
-            SESS[from_wa] = {"state": None, "page": 1}
-        # allow exiting the chicks flow
-        if low in {"menu", "main menu", "back"}:
-            SESS[from_wa] = {"state": None, "page": 1}
-            return {"text": main_menu_text(after_note)}
-
-
-
-        # 3️⃣ Fertile eggs
-    eggs_phrases = [
-            "fertile eggs",
-            "fertilised eggs",
-            "fertilized eggs",
-            "kienyeji eggs",
-            "eggs for incubation",
-        ]
-    is_eggs = any(phrase in low for phrase in eggs_phrases)
-
-    if digits == "3" or is_eggs:
-        sess["state"] = "eggs_menu"
-        return {"text": fertile_eggs_text()}
-    
-
-        # 4️⃣ Cages & equipment (placeholder for now)
-        if digits == "4":
-            return {
-                "text": (
-                    "🪺 *Cages & Equipment*\n\n"
-                    "Cages and equipment menu is coming soon.\n"
-                    f"For inquiries, please call or WhatsApp {CALL_LINE} and mention cages/equipment."
-                )
-            }
-        # FERTILE EGGS PHOTOS (after entering eggs_menu)
-    if sess.get("state") == "eggs_menu":
-        if ("photo" in low or "photos" in low):
-            send_text(from_wa, "📸 *Here are the Photos of our Mature Laying Chicken:*\n\n")
-            send_image(from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/Kari-scaled.jpg",
-                "Our Kari Breed"
-            )
-        
-            send_image(from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/Kenbro-scaled.jpg",
-                "Our Kenbro Breed"
-            )
-        
-            send_image(from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/Kuroilers.jpg",
-                "Our Kuroilers Breed"
-            )
-        
-            send_image(from_wa,
-                "https://neochickspoultry.com/wp-content/uploads/2025/11/Rainbow-rooster.jpg",
-                "Our Rainbow Rooster Breed"
-            )
-                # ✅ CLEAR STATE AFTER PHOTOS
-            SESS[from_wa] = {"state": None, "page": 1}
-            return {"text": f"📸For more information on eggs delivery, availability etc,\n"
-            f"please call us on: {CALL_LINE}\n"
-            "You can also visit our website:\n"
-            "https://neochickspoultry.com/kienyeji-farming/"}
-
-        if low in {"menu", "main menu", "back"}:
-            SESS[from_wa] = {"state": None, "page": 1}
-            return {"text": main_menu_text()}
-
-    # -------------------------
-    # AGENT (explicit, matches button title + free text variants)
-    # -------------------------
+    # Agent
     if any(kw in low for kw in {
         "talk to an agent", "speak to an agent", "agent", "human", "representative",
         "talk to a rep", "customer care", "customer support"
@@ -911,13 +729,11 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         SESS[from_wa] = {"state": None, "page": 1}
         return {"text": "👩🏽‍💼 Connecting you to a Neochicks rep… You can also call " + CALL_LINE + "."}
 
-    # -------------------------
-    # INCUBATOR ISSUES (explicit match + heuristics)
-    # -------------------------
+    # Incubator issues
     if ("incubator issues" in low) or any(k in low for k in [
         "troubleshoot", "hatch rate", "problem", "fault", "issue", "issues", "help with incubator"
     ]):
-        sess["state"] = None
+        SESS[from_wa] = {"state": None, "page": 1}
         return {
             "text": (
                 "🛠️ Quick checks for better hatching:\n"
@@ -931,14 +747,144 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             )
         }
 
-    # -------------------------
-    # INCUBATOR PRICES FLOW
-    # -------------------------
+    # Jump to incubator prices by keyword
     if any(k in low for k in ["capacities", "capacity", "capacities with prices", "prices", "price", "bei", "gharama"]):
         sess["state"] = "prices"
         sess["page"] = 1
         return {"text": price_page_text(page=1)}
 
+    # -------------------------
+    # MAIN MENU greeting (first interaction)
+    # -------------------------
+    if low in {"", "hi", "hello", "start", "want", "incubator", "need an incubator"} and not sess.get("state"):
+        return {"text": main_menu_text(after_note)}
+
+    # =========================================================
+    # TOP-LEVEL MENU (only when idle)
+    # =========================================================
+    if not sess.get("state"):
+
+        # 1️⃣ Incubators
+        if digits == "1":
+            sess["state"] = "prices"
+            sess["page"] = 1
+            return {"text": price_page_text(page=1)}
+
+        # 2️⃣ Chicks
+        chicks_triggers = [
+            "chick",
+            "chicks",
+            "old chicks",
+            "old chicken",
+            "improved kienyeji",
+        ]
+        is_chicks = any(phrase in low for phrase in chicks_triggers)
+        if digits == "2" or is_chicks:
+            sess["state"] = "chicks_menu"
+            return {"text": "YES, we deal with quality chicks at different ages.\n*Improved Kienyeji chicks*\n(Sasso, Kari, Kenbro and Kuroiler breeds)\n3 days \u2192 *Ksh100*\n1 week \u2192 *Ksh130*\n2 weeks \u2192 *Ksh160*\n3 weeks \u2192 *Ksh200*\n4 weeks \u2192 *Ksh230*\n\n*LAYERS CHICKS*\n1 DAY OLD \u2192 *Ksh160*\n5 MONTHS OLD \u2192 *Ksh850*\n\nIf you like, I can share the *photos of different ages of chicks*.\nSimply type: *PHOTOS*\n\nFor more information on delivery, availability, pictures etc,\nplease call us on: {CALL_LINE}\nYou can also visit our website:\nhttps://neochickspoultry.com/kienyeji-farming/"}
+
+        # 3️⃣ Fertile eggs
+        eggs_phrases = [
+            "fertile eggs",
+            "fertilised eggs",
+            "fertilized eggs",
+            "kienyeji eggs",
+            "eggs for incubation",
+        ]
+        is_eggs = any(phrase in low for phrase in eggs_phrases)
+        if digits == "3" or is_eggs:
+            sess["state"] = "eggs_menu"
+            return {"text": fertile_eggs_text()}
+
+        # 4️⃣ Cages & Equipment (placeholder for now)
+        if digits == "4" or "cage" in low:
+            sess["state"] = "cages_menu"
+            return {
+                "text": (
+                    "🪺 *Cages & Equipment*\n\n"
+                    "Cages and equipment menu is coming soon.\n"
+                    f"For inquiries, please call or WhatsApp {CALL_LINE} and mention cages/equipment."
+                )
+            }
+
+        # Nothing matched at idle -> fallback menu
+        SESS[from_wa] = {"state": None, "page": 1}
+        print("DEBUG RESETTING STATE...")
+        return {"text": "I didn’t quite get that.\n\n" + main_menu_text(after_note)}
+
+    # =========================================================
+    # STATEFUL FLOWS
+    # =========================================================
+
+    # -------------------------
+    # CHICKS MENU
+    # -------------------------
+    if sess.get("state") == "chicks_menu":
+        if "photo" in low or "photos" in low:
+            send_text(from_wa, "📸 *Here are the photos of chicks at different ages:* 🐥")
+
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/Day-Old-Kienyeji.jpg",
+                       "3 Days Old Kienyeji Chicks 🐥")
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/One-week-old.jpg",
+                       "1 Week Old Chicks 🐥")
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/two-weeks-old-kienyeji.jpg",
+                       "2 Weeks Old Chicks 🐥")
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/3-weeks-old.jpg",
+                       "3 Weeks Old Chicks 🐥")
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/one-month-old-kienyeji.jpg",
+                       "4 Weeks Old Chicks 🐥")
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/Day-old-layers.jpg",
+                       "Day-old Layers 🐥")
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg",
+                       "Mature Layers 🐔")
+
+            # reset after photos
+            SESS[from_wa] = {"state": None, "page": 1}
+            return {"text": "For more information on delivery, availability, or more pictures,\nplease call us on: {CALL_LINE}\n\nYou can also *order chicks online* using the link below:\nhttps://neochickspoultry.com/chicks-booking/"}
+
+        if low in {"menu", "main menu", "back"}:
+            SESS[from_wa] = {"state": None, "page": 1}
+            return {"text": main_menu_text(after_note)}
+
+        return {"text": "Type *PHOTOS* to view chicks photos, or *MENU* to return to main menu."}
+
+    # -------------------------
+    # FERTILE EGGS MENU
+    # -------------------------
+    if sess.get("state") == "eggs_menu":
+        if "photo" in low or "photos" in low:
+            send_text(from_wa, "📸 *Here are the Photos of our Mature Laying Chicken:*\n")
+
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/Kari-scaled.jpg",
+                       "Our Kari Breed")
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/Kenbro-scaled.jpg",
+                       "Our Kenbro Breed")
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/Kuroilers.jpg",
+                       "Our Kuroilers Breed")
+            send_image(from_wa, "https://neochickspoultry.com/wp-content/uploads/2025/11/Rainbow-rooster.jpg",
+                       "Our Rainbow Rooster Breed")
+
+            SESS[from_wa] = {"state": None, "page": 1}
+            return {"text": "\ud83d\udcf8For more information on eggs delivery, availability etc,\nplease call us on: {CALL_LINE}\nYou can also visit our website:\nhttps://neochickspoultry.com/kienyeji-farming/"}
+
+        if low in {"menu", "main menu", "back"}:
+            SESS[from_wa] = {"state": None, "page": 1}
+            return {"text": main_menu_text(after_note)}
+
+        return {"text": "Type *PHOTOS* to view fertile eggs photos, or *MENU* to return to main menu."}
+
+    # -------------------------
+    # CAGES MENU (placeholder state)
+    # -------------------------
+    if sess.get("state") == "cages_menu":
+        if low in {"menu", "main menu", "back"}:
+            SESS[from_wa] = {"state": None, "page": 1}
+            return {"text": main_menu_text(after_note)}
+        return {"text": "Cages & equipment menu is coming soon. Type *MENU* to go back."}
+
+    # -------------------------
+    # INCUBATOR PRICES PAGINATION + SELECTION
+    # -------------------------
     if sess.get("state") == "prices" and low in {"next", "more"}:
         sess["page"] += 1
         return {"text": price_page_text(page=sess["page"])}
@@ -1096,7 +1042,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         return {"text": build_proforma_text(sess)}
 
     # -------------------------
-    # CONFIRM (same logic as your original)
+    # CONFIRM
     # -------------------------
     if sess.get("state") == "await_confirm" and re.fullmatch(r"(?i)\s*confirm\s*", t):
         p = sess.get("last_product") or {}
@@ -1118,7 +1064,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             "created_at_utc": created_at.isoformat() + "Z",
         }
 
-        # Notify by email
         subject = f"ORDER CONFIRMED — {order['model']} for {order['customer_name']} ({order_id})"
         body = (
             f"New order confirmation from WhatsApp bot\n\n"
@@ -1135,7 +1080,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         )
         send_email(subject, body)
 
-        # Generate & store PDF
         INVOICES[order_id] = order
         pdf_bytes = b""
         try:
@@ -1149,7 +1093,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
         _cleanup_invoices()
 
-        # WhatsApp: send via media upload (fallback to link/text)
         media_id = upload_media_pdf(pdf_bytes or b"", f"{order_id}.pdf")
         if media_id:
             try:
@@ -1207,15 +1150,11 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         }
 
     # -------------------------
-    
-# Fallback → show main menu again
+    # FINAL FALLBACK
+    # -------------------------
     SESS[from_wa] = {"state": None, "page": 1}
     print("DEBUG RESETTING STATE...")
-
     return {"text": "I didn’t quite get that.\n\n" + main_menu_text(after_note)}
-
-
-
 # -------------------------
 # Routes
 # -------------------------
