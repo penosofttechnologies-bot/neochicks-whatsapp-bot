@@ -833,7 +833,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                     "https://neochickspoultry.com/chicks-booking/"
                 )
             }
-
+            SESS[from_wa] = {"state": None, "page": 1}
         # allow exiting the chicks flow
         if low in {"menu", "main menu", "back"}:
             SESS[from_wa] = {"state": None, "page": 1}
