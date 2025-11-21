@@ -866,22 +866,22 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             send_text(from_wa, "📸 *Here are the Photos of our Mature Laying Chicken:*\n\n")
             send_image(from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/Kari-scaled.jpg",
-                "Kienyeji Fertile Eggs 🥚"
+                "Our Kari Breed"
             )
         
             send_image(from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/Kenbro-scaled.jpg",
-                "Kenbro Fertile Eggs 🥚"
+                "Our Kenbro Breed"
             )
         
             send_image(from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/Kuroilers.jpg",
-                "Kuroiler Fertile Eggs 🥚"
+                "Our Kuroilers Breed"
             )
         
             send_image(from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/Rainbow-rooster.jpg",
-                "Rainbow Rooster Fertile Eggs 🥚"
+                "Our Rainbow Rooster Breed"
             )
         
             return {"text": f"📸For more information on eggs delivery, availability etc,\n"
