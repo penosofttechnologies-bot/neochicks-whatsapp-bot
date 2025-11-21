@@ -687,6 +687,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     t = (text or "").strip()
     low = t.lower()
     sess = SESS.setdefault(from_wa, {"state": None, "page": 1})
+    print("DEBUG STATE BEFORE:", sess)
+
     digits = re.sub(r"[^0-9]", "", low)
 
 
@@ -1205,8 +1207,11 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         }
 
     # -------------------------
+    
 # Fallback → show main menu again
     SESS[from_wa] = {"state": None, "page": 1}
+    print("DEBUG RESETTING STATE...")
+
     return {"text": "I didn’t quite get that.\n\n" + main_menu_text(after_note)}
 
 
