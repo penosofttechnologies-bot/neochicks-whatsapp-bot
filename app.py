@@ -755,23 +755,65 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     # CHICKS PHOTOS (inside chicks_menu state)
     # -------------------------
     if sess.get("state") == "chicks_menu":
-        if "photo" in low or "photos" in low:
-            return {
-                "text": (
-                    "Great! Here are the *photos of chicks at different ages* 🐥\n\n"
-                    "3 Days Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/Day-Old-Kienyeji.jpg)\n\n"
-                    "1 Week Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/One-week-old.jpg)\n\n"
-                    "2 Weeks Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/two-weeks-old-kienyeji.jpg)\n\n"
-                    "3 Weeks Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/3-weeks-old.jpg)\n\n"
-                    "4 Weeks Old chicks\n(https://neochickspoultry.com/wp-content/uploads/2025/11/one-month-old-kienyeji.jpg)\n\n"
-                    "Day old layers\n(https://neochickspoultry.com/wp-content/uploads/2025/11/Day-old-layers.jpg)\n\n"
-                    "Mature layers\n(https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg)\n\n"
-                    f"For more information on delivery, availability, more pictures etc,\n"
-                    f"please call us on: {CALL_LINE}\n"
-                    "You can also Order Chicks by clicking the below linke:\n\n"
-                    "https://neochickspoultry.com/chicks-booking/"
-                )
-            }
+# CHICKS PHOTOS (stateless)
+    if ("photo" in low or "photos" in low) and ("chick" in low):
+        
+        # 1️⃣ Send text FIRST
+        send_text(from_wa, "📸 *Here are the photos of chicks at different ages:* 🐥")
+    
+        # 2️⃣ Send each photo individually in sequence
+        send_image(
+            from_wa,
+            "https://neochickspoultry.com/wp-content/uploads/2025/11/Day-Old-Kienyeji.jpg",
+            "3 Days Old Kienyeji Chicks 🐥"
+        )
+    
+        send_image(
+            from_wa,
+            "https://neochickspoultry.com/wp-content/uploads/2025/11/One-week-old.jpg",
+            "1 Week Old Chicks 🐥"
+        )
+    
+        send_image(
+            from_wa,
+            "https://neochickspoultry.com/wp-content/uploads/2025/11/two-weeks-old-kienyeji.jpg",
+            "2 Weeks Old Chicks 🐥"
+        )
+    
+        send_image(
+            from_wa,
+            "https://neochickspoultry.com/wp-content/uploads/2025/11/3-weeks-old.jpg",
+            "3 Weeks Old Chicks 🐥"
+        )
+    
+        send_image(
+            from_wa,
+            "https://neochickspoultry.com/wp-content/uploads/2025/11/one-month-old-kienyeji.jpg",
+            "4 Weeks Old Chicks 🐥"
+        )
+    
+        send_image(
+            from_wa,
+            "https://neochickspoultry.com/wp-content/uploads/2025/11/Day-old-layers.jpg",
+            "Day-old Layers 🐥"
+        )
+    
+        send_image(
+            from_wa,
+            "https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg",
+            "Mature Layers 🐔"
+        )
+
+    # 3️⃣ Ending text (optional)
+    return {
+        "text": (
+            f"For more information on delivery, availability, or more pictures,\n"
+            f"please call us on: {CALL_LINE}\n\n"
+            "You can also *order chicks online* using the link below:\n"
+            "https://neochickspoultry.com/chicks-booking/"
+        )
+    }
+
         # If they type something else while in chicks_menu that we don't handle,
         # just gently remind them about PHOTOS or MENU:
         if low in {"menu", "main menu", "back"}:
