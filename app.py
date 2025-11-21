@@ -862,7 +862,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             }
         # FERTILE EGGS PHOTOS (after entering eggs_menu)
     if sess.get("state") == "eggs_menu":
-        if ("photo" in low or "photos" in low) and any(p in low for p in eggs_phrases):
+        if ("photo" in low or "photos" in low):
             send_text(from_wa, "📸 *Here are the Photos of our Mature Laying Chicken:*\n\n")
             send_image(from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/Kari-scaled.jpg",
