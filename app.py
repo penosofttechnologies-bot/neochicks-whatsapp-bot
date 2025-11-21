@@ -172,6 +172,13 @@ def chicks_info_text() -> str:
         "You can also visit our website:\n"
         "https://neochickspoultry.com/kienyeji-farming/"
     )
+def cages_text() -> str:
+    return (
+        "We have high quality, modern galvanized layers cages fitted with automated nipple drinking system and feeding troughs.\n" 
+        "The 128 birds cages goes at ksh37,000. This includes delivery and installation.\n\n"
+        "Any other capacity comes in multiples of 128 Birds ie: 256birds at ksh74k, 384birds at 111k, 512birds at ksh148k etc.\n"
+        "For more information, *call 0707 787884.*"
+    )
 
 CATALOG = [
     {"name":"56 Eggs","capacity":56,"price":13000,"solar":True,"free_gen":False,"image":"https://neochickspoultry.com/wp-content/uploads/2018/12/56-Eggs-solar-electric-incubator-1-600x449.png"},
@@ -917,12 +924,8 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
         # 4️⃣ Cages & equipment (placeholder for now)
         if digits == "4":
-            return {
-                "text": (
-                    "🪺 *Cages & Equipment*\n\n"
-                    "Cages and equipment menu is coming soon.\n"
-                    f"For inquiries, please call or WhatsApp {CALL_LINE} and mention cages/equipment."
-                )
+            sess["state"] = "cages_menu"
+            return {"text": cages_text()}
             }
         # FERTILE EGGS PHOTOS (after entering eggs_menu)
     if sess.get("state") == "eggs_menu":
