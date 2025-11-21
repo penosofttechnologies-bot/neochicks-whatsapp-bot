@@ -844,18 +844,18 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
 
         # 3️⃣ Fertile eggs
-        eggs_phrases = [
+    eggs_phrases = [
             "fertile eggs",
             "fertilised eggs",
             "fertilized eggs",
             "kienyeji eggs",
             "eggs for incubation",
         ]
-        is_eggs = any(phrase in low for phrase in eggs_phrases)
+    is_eggs = any(phrase in low for phrase in eggs_phrases)
 
-        if digits == "3" or is_eggs:
-            sess["state"] = "eggs_menu"
-            return {"text": fertile_eggs_text()}
+    if digits == "3" or is_eggs:
+        sess["state"] = "eggs_menu"
+        return {"text": fertile_eggs_text()}
     
 
         # 4️⃣ Cages & equipment (placeholder for now)
