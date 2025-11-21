@@ -614,7 +614,7 @@ def build_proforma_text(sess: dict) -> str:
     name  = sess.get("customer_name", "")
     phone = sess.get("customer_phone", "")
     return (
-        "🧾 *Pro-Forma Invoice*\n"
+        "🧾 *YOUR ORDER:*\n"
         f"Customer: {name}\n"
         f"Phone: {phone}\n"
         f"County: {county}\n"
@@ -748,7 +748,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         }
 
     # Jump to incubator prices by keyword
-    if any(k in low for k in ["capacities", "capacity", "capacities with prices", "prices", "price", "bei", "gharama"]):
+    if any(k in low for k in ["capacities", "capacity", "capacities with prices", "incubator prices", "machine prices", "bei", "gharama"]):
         sess["state"] = "prices"
         sess["page"] = 1
         return {"text": price_page_text(page=1)}
@@ -781,7 +781,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         is_chicks = any(phrase in low for phrase in chicks_triggers)
         if digits == "2" or is_chicks:
             sess["state"] = "chicks_menu"
-            return {"text": "YES, we deal with quality chicks at different ages.\n*Improved Kienyeji chicks*\n(Sasso, Kari, Kenbro and Kuroiler breeds)\n3 days \u2192 *Ksh100*\n1 week \u2192 *Ksh130*\n2 weeks \u2192 *Ksh160*\n3 weeks \u2192 *Ksh200*\n4 weeks \u2192 *Ksh230*\n\n*LAYERS CHICKS*\n1 DAY OLD \u2192 *Ksh160*\n5 MONTHS OLD \u2192 *Ksh850*\n\nIf you like, I can share the *photos of different ages of chicks*.\nSimply type: *PHOTOS*\n\nFor more information on delivery, availability, pictures etc,\nplease call us on: {CALL_LINE}\nYou can also visit our website:\nhttps://neochickspoultry.com/kienyeji-farming/"}
+            return {"text": "We deal with quality chicks at different ages.\n*Improved Kienyeji chicks*\n(Sasso, Kari, Kenbro and Kuroiler breeds)\n3 days \u2192 *Ksh100*\n1 week \u2192 *Ksh130*\n2 weeks \u2192 *Ksh160*\n3 weeks \u2192 *Ksh200*\n4 weeks \u2192 *Ksh230*\n\n*LAYERS CHICKS*\n1 DAY OLD \u2192 *Ksh160*\n5 MONTHS OLD \u2192 *Ksh850*\n\nIf you like, I can share the *photos of different ages of chicks*.\n\nSimply type: *PHOTOS*\n\nFor more information on delivery, availability, pictures etc,\nplease call us on: {CALL_LINE}\nYou can also visit our website:\nhttps://neochickspoultry.com/kienyeji-farming/"}
 
         # 3️⃣ Fertile eggs
         eggs_phrases = [
