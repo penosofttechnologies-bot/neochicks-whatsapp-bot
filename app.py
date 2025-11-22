@@ -785,9 +785,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             sess["state"] = "eggs_menu"
             return {"text": fertile_eggs_text()}
         # CHICKS GLOBAL JUMP
-        chicks_phrases = [
-            "day old","day-old","kienyeji chicks", "one month old", "one week old", "two weeks old"
-        ]
         if digits == "2" or "chicks" in words or "chick" in words:
             sess["state"] = "chicks_menu"
             return {"text": chicks_info_text()}
