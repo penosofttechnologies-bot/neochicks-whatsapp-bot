@@ -802,7 +802,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
     # -------------------------
     # MAIN MENU (first interaction)
     # -------------------------
-    if low in {"", "hi", "hello", "start", "want", "incubator", "need an incubator", "neochicks", "good morning", "good afternoon"} and not sess.get("state"):
+    if low in {"", "hi", "hello", "start", "want", "incubator", "need an incubator", "hi neochicks", "good morning", "good afternoon"} and not sess.get("state"):
         return {"text": main_menu_text(after_note)}
 
     # -------------------------
