@@ -972,7 +972,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             )
                 # ✅ CLEAR STATE AFTER PHOTOS
             send_text ( from_wa,
-                 "text": f"📸For more information on eggs delivery, availability etc,\n"
+                 f"📸For more information on eggs delivery, availability etc,\n"
                  f"please call us on: {CALL_LINE}\n"
                  "You can also visit our website:\n"
                  "https://neochickspoultry.com/kienyeji-farming/"
