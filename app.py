@@ -909,6 +909,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg",
                 "Mature Layers 🐔"
             )
+            # 3) Final text
             send_text(
             from_wa,
             f"For more information on delivery, availability, or more pictures,\n"
@@ -917,7 +918,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             "https://neochickspoultry.com/chicks-booking/"
         )            
             SESS[from_wa] = {"state": None, "page": 1}
-            # 3) Final text
+            
             return { }
             
         # allow exiting the chicks flow
@@ -972,7 +973,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             )
                 # ✅ CLEAR STATE AFTER PHOTOS
             send_text ( from_wa,
-                 f"📸For more information on eggs delivery, availability etc,\n"
+                 "📸For more information on eggs delivery, availability etc,\n"
                  f"please call us on: {CALL_LINE}\n"
                  "You can also visit our website:\n"
                  "https://neochickspoultry.com/kienyeji-farming/"
