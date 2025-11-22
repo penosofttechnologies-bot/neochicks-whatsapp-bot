@@ -781,9 +781,21 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             "eggs for incubation",
             "incubation eggs",
         ]
+        Incubator_phrases = [
+            "eggs incubator",
+            "egg incubators",
+            "eggs incubators"
+        ]
+        #incubators global jump
+        if digits == "1" or any(p in low for p in incubator_phrases):
+            sess["state"] = "prices"
+            return {"text": incubator_text()}
+            
+        #fertile eggs global jump
         if digits == "3" or any(p in low for p in eggs_phrases):
             sess["state"] = "eggs_menu"
             return {"text": fertile_eggs_text()}
+            
         # CHICKS GLOBAL JUMP
         is_chicks = bool(re.search(r"\bchicks?\b", low))
         
