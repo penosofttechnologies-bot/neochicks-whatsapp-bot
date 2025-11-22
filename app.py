@@ -139,6 +139,20 @@ def main_menu_text(after_note: str = "") -> str:
         "Reply with one of the *numbers above* and I will guide you🙏.\n"
         f"☎️ {CALL_LINE}" + after_note
     )
+def incubator_text() -> str:
+    return (
+        "🔥 *NEOCHICKS DIGITAL AUTOMATIC INCUBATORS*\n\n"
+        "We supply high-quality, highly efficient digital automatic incubators with:\n"
+        "✔ Automatic turning, temperature control and humidity control\n"
+        "✔ High hatch rates\n"
+        "✔ 1-year warranty\n"
+        "✔ *Free* Fertile Eggs\n"
+        "✔ *Free* Backup Generators\n"
+        "✔ *Free* delivery countrywide\n\n"
+        "To view the full price list with Photos, reply with: *PRICES*\n\n"
+        f"To speak to us directly, call {CALL_LINE}.\n"
+        "Website: https://neochickspoultry.com/eggs-incubators/"
+    )
 def fertile_eggs_text() -> str:
     return (
         "We supply quality *fertile eggs for incubation* 🥚\n\n"
@@ -174,10 +188,10 @@ def chicks_info_text() -> str:
     )
 def cages_text() -> str:
     return (
-        "We have high quality, modern galvanized layers cages fitted with automated nipple drinking system and feeding troughs.\n" 
+        "We have high quality, modern galvanized layers cages fitted with automated nipple drinking system and feeding troughs.\n\n" 
         "The 128 birds cages goes at ksh37,000. This includes delivery and installation.\n\n"
         "Any other capacity comes in multiples of 128 Birds ie: 256birds at ksh74k, 384birds at 111k, 512birds at ksh148k etc.\n"
-        "For more information, *call 0707 787884.*"
+        "For more information, *Call 0707 787884.*"
     )
 
 CATALOG = [
