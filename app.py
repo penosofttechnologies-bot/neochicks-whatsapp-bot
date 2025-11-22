@@ -1256,7 +1256,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         )
 
         SESS[from_wa] = {"state": None, "page": 1}
-        return {"text": "✅ Order confirmed! I’ve sent your pro-forma invoice. Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
+        return {"text": "✅ *Order confirmed!*\nI’ve sent your pro-forma invoice. Our team will contact you shortly to finalize delivery. Thank you for choosing Neochicks."}
 
     # -------------------------
     # County guess (stateless helper)
