@@ -785,9 +785,12 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             sess["state"] = "eggs_menu"
             return {"text": fertile_eggs_text()}
         # CHICKS GLOBAL JUMP
-        if digits == "2" or "chicks" in words or "chick" in words:
+        is_chicks = bool(re.search(r"\bchicks?\b", low))
+        
+        if digits == "2" or is_chicks:
             sess["state"] = "chicks_menu"
             return {"text": chicks_info_text()}
+
 
         # CAGES GLOBAL JUMP
         cages_phrases = ["cage","cages","battery cage","layers cage"]
@@ -821,14 +824,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             return {"text": price_page_text(page=1)}
 
         # 2️⃣ Chicks → enter chicks_menu state
-        chicks_triggers = [
-            "chick",
-            "chicks",
-            "old chicks",
-            "old chicken",
-            "improved kienyeji",
-        ]
-        is_chicks = any(phrase in low for phrase in chicks_triggers)
+        is_chicks = bool(re.search(r"\bchicks?\b", low))
 
         if digits == "2" or is_chicks:
             sess["state"] = "chicks_menu"
