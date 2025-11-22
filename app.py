@@ -781,7 +781,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             "eggs for incubation",
             "incubation eggs",
         ]
-        Incubator_phrases = [
+        incubator_phrases = [
             "eggs incubator",
             "egg incubators",
             "eggs incubators"
