@@ -149,7 +149,7 @@ def incubator_text() -> str:
         "✔ *Free* Fertile Eggs\n"
         "✔ *Free* Backup Generators\n"
         "✔ *Free* delivery countrywide\n\n"
-        "To view the full price list with Photos, reply with: *PRICES*\n\n"
+        "To view the full price list with Photos, send the word: *PRICES*\n\n"
         f"To speak to us directly, call {CALL_LINE}.\n"
         "Website: https://neochickspoultry.com/eggs-incubators/"
     )
@@ -727,6 +727,7 @@ def _leads_add(wa_from: str, name: str, phone: str, county: str, intent: str, la
 def brain_reply(text: str, from_wa: str = "") -> dict:
     t = (text or "").strip()
     low = t.lower()
+    words = re.findall(r"[a-z]+", low)
     sess = SESS.setdefault(from_wa, {"state": None, "page": 1})
     print("DEBUG STATE BEFORE:", sess)
 
@@ -787,7 +788,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         chicks_phrases = [
             "day old","day-old","kienyeji chicks", "one month old", "one week old", "two weeks old"
         ]
-        if digits == "2" or any(p in low for p in chicks_phrases):
+        if digits == "2" or "chicks" in words or "chick" in words:
             sess["state"] = "chicks_menu"
             return {"text": chicks_info_text()}
 
