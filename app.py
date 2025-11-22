@@ -925,7 +925,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         # 4️⃣ Cages & equipment (placeholder for now)
         if digits == "4":
             sess["state"] = "cages_menu"
-            return {"text": cages_text()}
+            return {"text": cages_text()
             }
         # FERTILE EGGS PHOTOS (after entering eggs_menu)
     if sess.get("state") == "eggs_menu":
