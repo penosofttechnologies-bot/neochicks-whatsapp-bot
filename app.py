@@ -907,16 +907,13 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             send_image(
                 from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/mature-layers.jpg",
-                "Mature Layers 🐔"
+                "Mature Layers 🐔\n\n"
+                "For more information on delivery, availability, or more pictures,\n"
+                f"please call us on: {CALL_LINE}\n\n"
+                "You can also *order chicks online* using the link below:\n"
+                "https://neochickspoultry.com/chicks-booking/"
             )
-            # 3) Final text
-            send_text(
-            from_wa,
-            f"For more information on delivery, availability, or more pictures,\n"
-            f"please call us on: {CALL_LINE}\n\n"
-            "You can also *order chicks online* using the link below:\n"
-            "https://neochickspoultry.com/chicks-booking/"
-        )            
+           
             SESS[from_wa] = {"state": None, "page": 1}
             
             return { }
@@ -969,15 +966,13 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         
             send_image(from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/Rainbow-rooster.jpg",
-                "Our Rainbow Rooster Breed"
-            )
-                # ✅ CLEAR STATE AFTER PHOTOS
-            send_text ( from_wa,
-                 "📸For more information on eggs delivery, availability etc,\n"
-                 f"please call us on: {CALL_LINE}\n"
+                "Our Rainbow Rooster Breed\n\n"
+                "📸For more information on eggs delivery, availability etc,\n"
+                 f"please call us on: {CALL_LINE}\n\n"
                  "You can also visit our website:\n"
                  "https://neochickspoultry.com/kienyeji-farming/"
             )
+                # ✅ CLEAR STATE AFTER PHOTOS
             SESS[from_wa] = {"state": None, "page": 1}
             return {}
         if low in {"menu", "main menu", "back"}:
