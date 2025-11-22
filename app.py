@@ -978,7 +978,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
                  "You can also visit our website:\n"
                  "https://neochickspoultry.com/kienyeji-farming/"
             )
-                  SESS[from_wa] = {"state": None, "page": 1}
+            SESS[from_wa] = {"state": None, "page": 1}
             return {}
         if low in {"menu", "main menu", "back"}:
             SESS[from_wa] = {"state": None, "page": 1}
