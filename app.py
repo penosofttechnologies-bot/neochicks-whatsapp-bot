@@ -655,7 +655,7 @@ def build_proforma_text(sess: dict) -> str:
     name  = sess.get("customer_name", "")
     phone = sess.get("customer_phone", "")
     return (
-        "🧾 *Pro-Forma Invoice*\n"
+        "🧾 *Your Order Details:*\n\n"
         f"Customer: {name}\n"
         f"Phone: {phone}\n"
         f"County: {county}\n"
