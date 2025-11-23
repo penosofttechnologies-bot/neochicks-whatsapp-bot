@@ -995,9 +995,9 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             send_image(from_wa,
                        "https://neochickspoultry.com/wp-content/uploads/2025/11/WhatsApp-Image-2025-11-23-at-3.32.11-AM.jpeg",
                 "Battery cages system 2")
-            send_image(
+            send_image(from_wa,
                       "https://neochickspoultry.com/wp-content/uploads/2025/11/cage-with-chicken.jpg",
-                "Battery cages system 3"
+                "Battery cages system 3"\n\n
                 "📸For more information on Layers Cages, availability, Delivery etc,\n"
                  f"please call us on: {CALL_LINE}\n\n"
                  "You can also visit our website:\n"
