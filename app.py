@@ -988,7 +988,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             }
     if sess.get("state") == "cages_menu":
         if ("photo" in low or "photos" in low):
-            send_text(from_wa, "📸 *Here are some Photos of our Battery Cages:*\n\n")
+            send_text(from_wa, "📸 *Here are some Photos of our Layers Cages:*\n\n")
             send_image(from_wa,
                 "https://neochickspoultry.com/wp-content/uploads/2025/11/WhatsApp-Image-2025-11-23-at-3.32.11-AM1.jpeg",
                 "Battery Cage System 1")
