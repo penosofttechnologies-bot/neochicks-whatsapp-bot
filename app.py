@@ -167,30 +167,43 @@ def fertile_eggs_text() -> str:
         "https://neochickspoultry.com/kienyeji-farming/"
     )
 def chicks_info_text() -> str:
-    return (
-        "We deal with quality chicks at different ages.\n"
-        "*Improved Kienyeji chicks*\n"
-        "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
-        "3 days → *Ksh100*\n"
-        "1 week → *Ksh130*\n"
-        "2 weeks → *Ksh160*\n"
-        "3 weeks → *Ksh200*\n"
-        "4 weeks → *Ksh230*\n\n"
-        "*LAYERS CHICKS*\n"
-        "1 DAY OLD → *Ksh160*\n"
-        "5 MONTHS OLD → *Ksh850*\n\n"
-        "If you like, I can share the *photos of different ages of chicks*.\n\n"
-        "Simply type: *PHOTOS*\n\n"
-        f"For more information on delivery, availability, pictures etc,\n"
-        f"please call us on: {CALL_LINE}\n"
-        "You can also visit our website:\n"
-        "https://neochickspoultry.com/kienyeji-farming/"
-    )
+                "text": (
+                    "We deal with quality chicks at different ages.\n"
+                    "*Improved Kienyeji chicks*\n"
+                    "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
+                    "3 days → *Ksh100*\n"
+                    "1 week → *Ksh130*\n"
+                    "2 weeks → *Ksh160*\n"
+                    "3 weeks → *Ksh200*\n"
+                    "4 weeks → *Ksh230*\n\n"
+                    "*LAYERS CHICKS*\n"
+                    "1 DAY OLD → *Ksh160*\n"
+                    "1 Week OLD → *Ksh190*\n"
+                    "2 Weeks OLD → *Ksh230*\n"
+                    "3 Weeks OLD → *Ksh260*\n"
+                    "1 Month OLD → *Ksh300*\n\n"
+                    "2 MONTHS OLD → *Ksh450*\n"
+                    "3 MONTHS OLD → *Ksh550*\n"
+                    "4 MONTHS OLD → *Ksh750*\n"
+                    "5 MONTHS OLD → *Ksh850*\n\n"
+                    "If you like, I can share the *photos of different ages of layers chicks*.\n\n"
+                    "Simply type: *PHOTOS*\n\n"
+                    "For more information on delivery, availability, more pictures etc,\n"
+                    f"please call us on: {CALL_LINE}\n"
+                    "You can also visit our website:\n"
+                    "https://neochickspoultry.com/kienyeji-farming/"
+                )
 def cages_text() -> str:
     return (
         "We have high quality, modern galvanized layers cages fitted with automated nipple drinking system and feeding troughs.\n\n" 
-        "The 128 birds cages goes at ksh37,000. This includes delivery and installation.\n\n"
-        "Any other capacity comes in multiples of 128 Birds ie: 256birds at ksh74k, 384birds at 111k, 512birds at ksh148k etc.\n"
+        "The 128 birds cages goes at ksh38,000\n"
+        "The 256 birds cages goes at ksh76,000\n"
+        "The 384 birds cages goes at ksh114,000\n"
+        "The 512 birds cages goes at ksh152,000\n"
+        "The 640 birds cages goes at ksh190,000\n"
+        "And so on...in multiples of 128 Birds\n\n"
+        "If you like, I can share the *photos of different ages of chicks*.\n\n"
+        "Simply type: *PHOTOS*\n\n"
         "For more information, *Call 0707 787884.*"
     )
 
@@ -773,6 +786,12 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
         "cancel_confirm", "await_county"
     }
     if sess.get("state") not in _non_interrupt_states:
+        
+        incubator_phrases = [
+            "eggs incubator",
+            "egg incubators",
+            "eggs incubators"
+        ]
         eggs_phrases = [
             "fertile eggs",
             "fertilised eggs",
@@ -781,11 +800,14 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             "eggs for incubation",
             "incubation eggs",
         ]
-        incubator_phrases = [
-            "eggs incubator",
-            "egg incubators",
-            "eggs incubators"
+
+        cages_phrases = [
+            "cage",
+            "cages",
+            "battery cage",
+            "layers cage"
         ]
+        
         #incubators global jump
         if digits == "1" or any(p in low for p in incubator_phrases):
             sess["state"] = "prices"
@@ -803,9 +825,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             sess["state"] = "chicks_menu"
             return {"text": chicks_info_text()}
 
-
         # CAGES GLOBAL JUMP
-        cages_phrases = ["cage","cages","battery cage","layers cage"]
         if digits == "4" or any(p in low for p in cages_phrases):
             sess["state"] = "cages_menu"
             return {"text": cages_text()}
@@ -840,27 +860,7 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
 
         if digits == "2" or is_chicks:
             sess["state"] = "chicks_menu"
-            return {
-                "text": (
-                    "We deal with quality chicks at different ages.\n"
-                    "*Improved Kienyeji chicks*\n"
-                    "(Sasso, Kari, Kenbro and Kuroiler breeds)\n"
-                    "3 days → *Ksh100*\n"
-                    "1 week → *Ksh130*\n"
-                    "2 weeks → *Ksh160*\n"
-                    "3 weeks → *Ksh200*\n"
-                    "4 weeks → *Ksh230*\n\n"
-                    "*LAYERS CHICKS*\n"
-                    "1 DAY OLD → *Ksh160*\n"
-                    "5 MONTHS OLD → *Ksh850*\n\n"
-                    "If you like, I can share the *photos of different ages of chicks*.\n"
-                    "Simply type: *PHOTOS*\n\n"
-                    f"For more information on delivery, availability, pictures etc,\n"
-                    f"please call us on: {CALL_LINE}\n"
-                    "You can also visit our website:\n"
-                    "https://neochickspoultry.com/kienyeji-farming/"
-                )
-            }
+            return {"text": chicks_info_text()}
                 # CHICKS PHOTOS (stateful: only when in chicks_menu)
     if sess.get("state") == "chicks_menu":
         if "photo" in low or "photos" in low:
@@ -939,12 +939,6 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             sess["state"] = "eggs_menu"
             return {"text": fertile_eggs_text()}
     
-
-        # 4️⃣ Cages & equipment (placeholder for now)
-        if digits == "4":
-            sess["state"] = "cages_menu"
-            return {"text": cages_text()
-            }
         # FERTILE EGGS PHOTOS (after entering eggs_menu)
     if sess.get("state") == "eggs_menu":
         if ("photo" in low or "photos" in low):
@@ -979,6 +973,39 @@ def brain_reply(text: str, from_wa: str = "") -> dict:
             SESS[from_wa] = {"state": None, "page": 1}
             return {"text": main_menu_text()}
 
+        
+        # 4️⃣ Cages & equipment
+        cages_phrases = [
+            "cage",
+            "cages",
+            "battery cage",
+            "layers cage"
+        ]
+        is_cages = any(phrase in low for phrase in cages_phrases)
+        if digits == "4" or is_cages:
+            sess["state"] = "cages_menu"
+            return {"text": cages_text()
+            }
+    if sess.get("state") == "cages_menu":
+        if ("photo" in low or "photos" in low):
+            send_text(from_wa, "📸 *Here are some Photos of our Battery Cages:*\n\n")
+            send_image(from_wa,
+                "https://neochickspoultry.com/wp-content/uploads/2025/11/WhatsApp-Image-2025-11-23-at-3.32.11-AM1.jpeg",
+                "Battery Cage System 1")
+            send_image(from_wa,
+                       "https://neochickspoultry.com/wp-content/uploads/2025/11/WhatsApp-Image-2025-11-23-at-3.32.11-AM.jpeg",
+                "Battery cages system 2")
+            send_image(
+                      "https://neochickspoultry.com/wp-content/uploads/2025/11/cage-with-chicken.jpg",
+                "Battery cages system 3"
+                "📸For more information on Layers Cages, availability, Delivery etc,\n"
+                 f"please call us on: {CALL_LINE}\n\n"
+                 "You can also visit our website:\n"
+                 "https://neochickspoultry.com/poultry-cages/"                
+            )
+                # ✅ CLEAR STATE AFTER PHOTOS
+            SESS[from_wa] = {"state": None, "page": 1}
+            return {}            
     # -------------------------
     # AGENT (explicit, matches button title + free text variants)
     # -------------------------
