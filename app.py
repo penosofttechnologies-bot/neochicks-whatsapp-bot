@@ -141,14 +141,14 @@ def main_menu_text(after_note: str = "") -> str:
     )
 def incubator_text() -> str:
     return (
-        "🔥 *NEOCHICKS DIGITAL AUTOMATIC INCUBATORS*\n\n"
+        "🔥 *MODERN AUTOMATIC EGGS INCUBATORS*\n\n"
         "We supply high-quality, highly efficient digital automatic incubators with:\n"
         "✔ Automatic turning, temperature control and humidity control\n"
         "✔ High hatch rates\n"
         "✔ 1-year warranty\n"
-        "✔ *Free* Fertile Eggs\n"
-        "✔ *Free* Backup Generators\n"
-        "✔ *Free* delivery countrywide\n\n"
+        "✔ *FREE* Fertile Eggs\n"
+        "✔ *FREE* Backup Generators\n"
+        "✔ *FREE* delivery countrywide\n\n"
         "To view the full price list with Photos, send the word: *PRICES*\n\n"
         f"To speak to us directly, call {CALL_LINE}.\n"
         "Website: https://neochickspoultry.com/eggs-incubators/"
