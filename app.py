@@ -19,6 +19,7 @@ import json
 import logging
 import csv, gzip, base64
 from datetime import datetime, timedelta
+from collections import Counter, defaultdict, deque
 
 import requests
 from flask import Flask, request, jsonify, send_file, abort
@@ -1462,6 +1463,425 @@ def send_daily_logs():
     except Exception:
         app.logger.exception("send_daily_logs failed")
         return "error", 500
+
+# Dashboard reporting
+# ==========================================================
+# Reporting Dashboard (reads wa_audit.jsonl.gz + wa_leads.csv)
+# ==========================================================
+
+def _parse_iso_utc(s: str):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", ""))
+    except Exception:
+        return None
+
+def _to_eat_str(dt_utc: datetime | None):
+    if not dt_utc:
+        return ""
+    dt_eat = dt_utc + timedelta(hours=3)
+    return dt_eat.strftime("%Y-%m-%d %H:%M")
+
+def read_audit(max_items: int = 50000):
+    """
+    Read masked audit logs from gz jsonl.
+    Returns list of dict events (chronological).
+    """
+    events = []
+    if not os.path.exists(AUDIT_PATH):
+        return events
+
+    try:
+        with gzip.open(AUDIT_PATH, "rt", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                    events.append(ev)
+                except Exception:
+                    continue
+        # keep only last max_items if file is huge
+        if len(events) > max_items:
+            events = events[-max_items:]
+        return events
+    except Exception:
+        app.logger.exception("Failed reading audit")
+        return []
+
+def read_leads():
+    """
+    Read raw leads CSV.
+    Returns list of dict rows (chronological).
+    """
+    rows = []
+    if not os.path.exists(LEADS_CSV):
+        return rows
+
+    try:
+        with open(LEADS_CSV, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for r in reader:
+                rows.append(r)
+        return rows
+    except Exception:
+        app.logger.exception("Failed reading leads")
+        return []
+
+def build_summary(days: int = 30, recent_n: int = 50):
+    audit = read_audit()
+    leads = read_leads()
+
+    now_utc = datetime.utcnow()
+    start_date = (now_utc - timedelta(days=days-1)).date()
+
+    # ---- Audit metrics ----
+    in_count = 0
+    out_count = 0
+    daily_msgs = defaultdict(lambda: {"in": 0, "out": 0, "total": 0})
+
+    for ev in audit:
+        dt = _parse_iso_utc(ev.get("ts_utc"))
+        if not dt:
+            continue
+        day = dt.date()
+        if day < start_date:
+            continue
+
+        direction = (ev.get("direction") or "").lower()
+        if direction == "in":
+            in_count += 1
+            daily_msgs[str(day)]["in"] += 1
+        elif direction == "out":
+            out_count += 1
+            daily_msgs[str(day)]["out"] += 1
+
+        daily_msgs[str(day)]["total"] += 1
+
+    # Fill trend days
+    msg_trend = []
+    for i in range(days):
+        d = (now_utc - timedelta(days=days-1-i)).date()
+        key = str(d)
+        msg_trend.append({
+            "day": key,
+            "in": daily_msgs[key]["in"],
+            "out": daily_msgs[key]["out"],
+            "total": daily_msgs[key]["total"],
+        })
+
+    # ---- Leads metrics ----
+    leads_daily = defaultdict(int)
+    intents = Counter()
+    counties = Counter()
+
+    for r in leads:
+        dt = _parse_iso_utc(r.get("ts_utc"))
+        if not dt:
+            continue
+        day = dt.date()
+        if day >= start_date:
+            leads_daily[str(day)] += 1
+
+        intent = (r.get("intent") or "").strip().lower()
+        if intent:
+            intents[intent] += 1
+
+        county = (r.get("county") or "").strip().title()
+        if county:
+            counties[county] += 1
+
+    leads_trend = []
+    for i in range(days):
+        d = (now_utc - timedelta(days=days-1-i)).date()
+        key = str(d)
+        leads_trend.append({"day": key, "count": leads_daily.get(key, 0)})
+
+    top_counties = [{"county": c, "count": n} for c, n in counties.most_common(10)]
+    intent_breakdown = [{"intent": k, "count": v} for k, v in intents.most_common()]
+
+    confirmed_orders = intents.get("confirmed", 0)
+
+    # ---- Recent tables ----
+    recent_audit = []
+    for ev in audit[-recent_n:][::-1]:
+        dt = _parse_iso_utc(ev.get("ts_utc"))
+        recent_audit.append({
+            "time_eat": _to_eat_str(dt),
+            "direction": ev.get("direction"),
+            "text": (ev.get("text") or "")[:220],
+            "state": ev.get("state") or ev.get("state_after") or "",
+            "raw_type": ev.get("raw_type") or "",
+        })
+
+    recent_leads = []
+    for r in leads[-recent_n:][::-1]:
+        dt = _parse_iso_utc(r.get("ts_utc"))
+        recent_leads.append({
+            "time_eat": _to_eat_str(dt),
+            "name": r.get("customer_name") or "",
+            "phone": r.get("customer_phone") or "",
+            "county": (r.get("county") or "").title(),
+            "intent": r.get("intent") or "",
+            "last_text": (r.get("last_text") or "")[:220],
+        })
+
+    today_key = str(now_utc.date())
+    summary = {
+        "kpis": {
+            "messages_in": in_count,
+            "messages_out": out_count,
+            "messages_total": in_count + out_count,
+            "leads_total": len(leads),
+            "leads_today": leads_daily.get(today_key, 0),
+            "confirmed_orders": confirmed_orders,
+        },
+        "msg_trend": msg_trend,
+        "leads_trend": leads_trend,
+        "top_counties": top_counties,
+        "intent_breakdown": intent_breakdown,
+        "recent_audit": recent_audit,
+        "recent_leads": recent_leads,
+        "paths": {"audit": AUDIT_PATH, "leads": LEADS_CSV},
+    }
+    return summary
+
+
+@app.get("/api/summary")
+def api_summary():
+    return jsonify(build_summary(days=30, recent_n=50))
+
+
+@app.get("/download/audit")
+def download_audit():
+    if not os.path.exists(AUDIT_PATH):
+        return "Audit file not found", 404
+    return send_file(AUDIT_PATH, as_attachment=True, download_name="wa_audit.jsonl.gz")
+
+
+@app.get("/download/leads")
+def download_leads():
+    if not os.path.exists(LEADS_CSV):
+        return "Leads file not found", 404
+    return send_file(LEADS_CSV, as_attachment=True, download_name="wa_leads.csv")
+
+
+@app.get("/dashboard")
+def dashboard():
+    data = build_summary(days=30, recent_n=50)
+
+    html = """
+    <!doctype html>
+    <html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/>
+        <title>Neochicks Logs Dashboard</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </head>
+    <body class="bg-slate-50 text-slate-900">
+      <div class="max-w-7xl mx-auto p-4 md:p-8">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-2xl md:text-3xl font-bold">Neochicks Logs Dashboard</h1>
+            <div class="text-sm text-slate-500">
+              Audit: {{paths.audit}} | Leads: {{paths.leads}}
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <a href="/download/audit" class="px-3 py-2 bg-white rounded-xl shadow text-sm hover:bg-slate-100">Download Audit</a>
+            <a href="/download/leads" class="px-3 py-2 bg-white rounded-xl shadow text-sm hover:bg-slate-100">Download Leads</a>
+          </div>
+        </div>
+
+        <!-- KPI cards -->
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-6">
+          {% set k = kpis %}
+          <div class="bg-white rounded-2xl shadow p-4">
+            <div class="text-slate-500 text-xs">Inbound Msgs (30d)</div>
+            <div class="text-2xl font-bold mt-1">{{k.messages_in}}</div>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4">
+            <div class="text-slate-500 text-xs">Outbound Msgs (30d)</div>
+            <div class="text-2xl font-bold mt-1">{{k.messages_out}}</div>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4">
+            <div class="text-slate-500 text-xs">Total Msgs (30d)</div>
+            <div class="text-2xl font-bold mt-1">{{k.messages_total}}</div>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4">
+            <div class="text-slate-500 text-xs">Leads Total</div>
+            <div class="text-2xl font-bold mt-1">{{k.leads_total}}</div>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4">
+            <div class="text-slate-500 text-xs">Leads Today</div>
+            <div class="text-2xl font-bold mt-1">{{k.leads_today}}</div>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4">
+            <div class="text-slate-500 text-xs">Confirmed Orders</div>
+            <div class="text-2xl font-bold mt-1">{{k.confirmed_orders}}</div>
+          </div>
+        </div>
+
+        <!-- Charts row -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div class="bg-white rounded-2xl shadow p-4">
+            <h2 class="font-semibold mb-2">Messages Trend (Last 30 Days)</h2>
+            <canvas id="msgChart" height="140"></canvas>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4">
+            <h2 class="font-semibold mb-2">Leads Trend (Last 30 Days)</h2>
+            <canvas id="leadsChart" height="140"></canvas>
+          </div>
+        </div>
+
+        <!-- Breakdown row -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div class="bg-white rounded-2xl shadow p-4">
+            <h2 class="font-semibold mb-2">Top Counties (Leads)</h2>
+            <canvas id="countyChart" height="160"></canvas>
+          </div>
+          <div class="bg-white rounded-2xl shadow p-4">
+            <h2 class="font-semibold mb-2">Intent Breakdown</h2>
+            <canvas id="intentChart" height="160"></canvas>
+          </div>
+        </div>
+
+        <!-- Recent tables -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-white rounded-2xl shadow p-4">
+            <h2 class="font-semibold mb-3">Recent Audit (masked)</h2>
+            <div class="overflow-auto max-h-[480px]">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-left border-b">
+                    <th class="py-2 pr-3">Time (EAT)</th>
+                    <th class="py-2 pr-3">Dir</th>
+                    <th class="py-2 pr-3">State</th>
+                    <th class="py-2">Text</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in recent_audit %}
+                  <tr class="border-b last:border-0 align-top">
+                    <td class="py-2 pr-3 whitespace-nowrap">{{r.time_eat}}</td>
+                    <td class="py-2 pr-3 font-medium">{{r.direction}}</td>
+                    <td class="py-2 pr-3 text-slate-600">{{r.state}}</td>
+                    <td class="py-2">{{r.text}}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl shadow p-4">
+            <h2 class="font-semibold mb-3">Recent Leads (real phones)</h2>
+            <div class="overflow-auto max-h-[480px]">
+              <table class="min-w-full text-sm">
+                <thead>
+                  <tr class="text-left border-b">
+                    <th class="py-2 pr-3">Time (EAT)</th>
+                    <th class="py-2 pr-3">Name</th>
+                    <th class="py-2 pr-3">Phone</th>
+                    <th class="py-2 pr-3">County</th>
+                    <th class="py-2 pr-3">Intent</th>
+                    <th class="py-2">Last Text</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in recent_leads %}
+                  <tr class="border-b last:border-0 align-top">
+                    <td class="py-2 pr-3 whitespace-nowrap">{{r.time_eat}}</td>
+                    <td class="py-2 pr-3">{{r.name}}</td>
+                    <td class="py-2 pr-3 whitespace-nowrap">{{r.phone}}</td>
+                    <td class="py-2 pr-3">{{r.county}}</td>
+                    <td class="py-2 pr-3 font-medium">{{r.intent}}</td>
+                    <td class="py-2">{{r.last_text}}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        const msgTrend = {{msg_trend | tojson}};
+        const leadsTrend = {{leads_trend | tojson}};
+        const counties = {{top_counties | tojson}};
+        const intents = {{intent_breakdown | tojson}};
+
+        // Messages chart (in/out/total)
+        new Chart(document.getElementById('msgChart'), {
+          type: 'line',
+          data: {
+            labels: msgTrend.map(x => x.day),
+            datasets: [
+              { label: 'Inbound', data: msgTrend.map(x => x.in), tension: 0.25 },
+              { label: 'Outbound', data: msgTrend.map(x => x.out), tension: 0.25 },
+              { label: 'Total', data: msgTrend.map(x => x.total), tension: 0.25 }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true }, x: { ticks: { maxTicksLimit: 8 } } }
+          }
+        });
+
+        // Leads chart
+        new Chart(document.getElementById('leadsChart'), {
+          type: 'line',
+          data: {
+            labels: leadsTrend.map(x => x.day),
+            datasets: [{ label: 'Leads/day', data: leadsTrend.map(x => x.count), tension: 0.25 }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: true } },
+            scales: { y: { beginAtZero: true }, x: { ticks: { maxTicksLimit: 8 } } }
+          }
+        });
+
+        // Counties chart
+        new Chart(document.getElementById('countyChart'), {
+          type: 'bar',
+          data: {
+            labels: counties.map(x => x.county),
+            datasets: [{ label: 'Leads', data: counties.map(x => x.count) }]
+          },
+          options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+
+        // Intent breakdown chart
+        new Chart(document.getElementById('intentChart'), {
+          type: 'bar',
+          data: {
+            labels: intents.map(x => x.intent),
+            datasets: [{ label: 'Count', data: intents.map(x => x.count) }]
+          },
+          options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+      </script>
+    </body>
+    </html>
+    """
+
+    return render_template_string(
+        html,
+        kpis=data["kpis"],
+        msg_trend=data["msg_trend"],
+        leads_trend=data["leads_trend"],
+        top_counties=data["top_counties"],
+        intent_breakdown=data["intent_breakdown"],
+        recent_audit=data["recent_audit"],
+        recent_leads=data["recent_leads"],
+        paths=data["paths"],
+    )
 
 # -------------------------
 # Run (local only)
