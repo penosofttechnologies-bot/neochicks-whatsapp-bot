@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from collections import Counter, defaultdict, deque
 
 import requests
-from flask import Flask, request, jsonify, send_file, abort
+from flask import Flask, request, jsonify, send_file, abort, render_template_string
 from fpdf import FPDF  # pip install fpdf==1.7.2
 
 # -------------------------
