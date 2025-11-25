@@ -1686,6 +1686,15 @@ def download_leads():
         return "Leads file not found", 404
     return send_file(LEADS_CSV, as_attachment=True, download_name="wa_leads.csv")
 
+@app.get("/debug/files")
+def debug_files():
+    dirs = {"/data": [], "/tmp": []}
+    for d in dirs:
+        try:
+            dirs[d] = os.listdir(d)
+        except Exception as e:
+            dirs[d] = [f"ERROR: {e}"]
+    return jsonify(dirs)
 
 @app.get("/dashboard")
 def dashboard():
