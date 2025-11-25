@@ -55,7 +55,14 @@ LOGO_URL = os.getenv("LOGO_URL", "")           # optional
 SIGNATURE_URL = os.getenv("SIGNATURE_URL", "") # optional
 
 # ---- Logging & storage paths (persistent on Render Disk if mounted at /data) ----
-_DATA = "/data" if os.path.isdir("/data") else "/tmp"
+# Prefer persistent disks if present
+if os.path.isdir("/data"):
+    _DATA = "/data"
+elif os.path.isdir("/var/data"):
+    _DATA = "/var/data"
+else:
+    _DATA = "/tmp"
+
 AUDIT_PATH = os.path.join(_DATA, "wa_audit.jsonl.gz")   # masked analytics log (no PDFs/images)
 LEADS_CSV  = os.path.join(_DATA, "wa_leads.csv")        # raw phone leads for follow-ups
 
