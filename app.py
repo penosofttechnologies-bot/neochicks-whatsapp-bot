@@ -1483,27 +1483,37 @@ def _to_eat_str(dt_utc: datetime | None):
     dt_eat = dt_utc + timedelta(hours=3)
     return dt_eat.strftime("%Y-%m-%d %H:%M")
 
-def read_audit(max_items: int = 50000):
+def _first_existing(*paths):
+    for p in paths:
+        if p and os.path.exists(p):
+            return p
+    return None
+
+def read_audit(max_items=50000):
     """
     Read masked audit logs from gz jsonl.
-    Returns list of dict events (chronological).
+    Searches both /data and /tmp to avoid path mismatch.
     """
-    events = []
-    if not os.path.exists(AUDIT_PATH):
-        return events
+    path = _first_existing(
+        AUDIT_PATH,
+        "/data/wa_audit.jsonl.gz",
+        "/tmp/wa_audit.jsonl.gz"
+    )
+    if not path:
+        return []
 
+    events = []
     try:
-        with gzip.open(AUDIT_PATH, "rt", encoding="utf-8") as fh:
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if not line:
                     continue
                 try:
-                    ev = json.loads(line)
-                    events.append(ev)
+                    events.append(json.loads(line))
                 except Exception:
                     continue
-        # keep only last max_items if file is huge
+
         if len(events) > max_items:
             events = events[-max_items:]
         return events
@@ -1514,14 +1524,19 @@ def read_audit(max_items: int = 50000):
 def read_leads():
     """
     Read raw leads CSV.
-    Returns list of dict rows (chronological).
+    Searches both /data and /tmp to avoid path mismatch.
     """
-    rows = []
-    if not os.path.exists(LEADS_CSV):
-        return rows
+    path = _first_existing(
+        LEADS_CSV,
+        "/data/wa_leads.csv",
+        "/tmp/wa_leads.csv"
+    )
+    if not path:
+        return []
 
+    rows = []
     try:
-        with open(LEADS_CSV, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for r in reader:
                 rows.append(r)
@@ -1530,9 +1545,13 @@ def read_leads():
         app.logger.exception("Failed reading leads")
         return []
 
+
 def build_summary(days: int = 30, recent_n: int = 50):
     audit = read_audit()
     leads = read_leads()
+
+    audit_path = _first_existing(AUDIT_PATH, "/data/wa_audit.jsonl.gz", "/tmp/wa_audit.jsonl.gz") or AUDIT_PATH
+    leads_path = _first_existing(LEADS_CSV, "/data/wa_leads.csv", "/tmp/wa_leads.csv") or LEADS_CSV
 
     now_utc = datetime.utcnow()
     start_date = (now_utc - timedelta(days=days-1)).date()
