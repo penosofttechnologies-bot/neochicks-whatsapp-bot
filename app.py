@@ -40,9 +40,9 @@ WHATSAPP_TOKEN  = os.getenv("WHATSAPP_TOKEN", "")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID", "")
 GRAPH_BASE      = "https://graph.facebook.com/v20.0"
 
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
-SENDGRID_FROM    = os.getenv("SENDGRID_FROM", "")
-SALES_EMAIL      = os.getenv("SALES_EMAIL", SENDGRID_FROM)
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+BREVO_FROM    = os.getenv("BREVO_FROM", "")
+SALES_EMAIL      = os.getenv("SALES_EMAIL", BREVO_FROM)
 
 BUSINESS_NAME = "Neochicks Poultry Ltd."
 CALL_LINE     = "0707787884"
@@ -518,70 +518,109 @@ def generate_invoice_pdf(order: dict) -> bytes:
     return pdf.output(dest="S").encode("latin1")
 
 # -------------------------
-# Email (SendGrid)
+# Email (Brevo)
 # -------------------------
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
 def send_email(subject: str, body: str) -> bool:
-    if not (SENDGRID_API_KEY and SENDGRID_FROM and SALES_EMAIL):
-        app.logger.info("Email not sent—missing SENDGRID_API_KEY/SENDGRID_FROM/SALES_EMAIL")
+    # Expect these to already exist in your module like you do now:
+    # BREVO_API_KEY, BREVO_FROM (or SENDGRID_FROM renamed), SALES_EMAIL
+    if not (BREVO_API_KEY and BREVO_FROM and SALES_EMAIL):
+        app.logger.info("Email not sent—missing BREVO_API_KEY/BREVO_FROM/SALES_EMAIL")
         return False
+
     try:
         r = requests.post(
-            "https://api.sendgrid.com/v3/mail/send",
-            headers={"Authorization": f"Bearer {SENDGRID_API_KEY}", "Content-Type": "application/json"},
+            BREVO_URL,
+            headers={
+                "api-key": BREVO_API_KEY,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
             json={
-                "personalizations": [{"to": [{"email": SALES_EMAIL}]}],
-                "from": {"email": SENDGRID_FROM, "name": "Neochicks Bot"},
+                "sender": {"email": BREVO_FROM, "name": "Neochicks Bot"},
+                "to": [{"email": SALES_EMAIL}],
                 "subject": subject,
-                "content": [{"type": "text/plain", "value": body}],
+                "textContent": body,
             },
             timeout=20,
         )
-        return r.status_code in (200, 202)
+
+        # Brevo typically returns 201 Created on success
+        ok = r.status_code in (200, 201, 202)
+        if not ok:
+            app.logger.info("Brevo send failed: %s %s", r.status_code, r.text)
+        return ok
+
     except Exception:
-        app.logger.exception("SendGrid exception")
+        app.logger.exception("Brevo exception")
         return False
+
 
 def send_email_with_attachments(subject: str, body: str, attachments: list[tuple[str, str]]) -> bool:
     """
-    SendGrid email with multiple attachments.
+    Brevo email with multiple attachments.
     attachments: list of tuples (filename, filepath)
     """
-    if not (SENDGRID_API_KEY and SENDGRID_FROM and SALES_EMAIL):
-        app.logger.info("Email not sent—missing SENDGRID_API_KEY/SENDGRID_FROM/SALES_EMAIL")
+    if not (BREVO_API_KEY and BREVO_FROM and SALES_EMAIL):
+        app.logger.info("Email not sent—missing BREVO_API_KEY/BREVO_FROM/SALES_EMAIL")
         return False
+
     try:
         atts = []
         for name, path in attachments or []:
             if not (name and path and os.path.exists(path)):
                 continue
+
             with open(path, "rb") as fh:
                 b64 = base64.b64encode(fh.read()).decode("ascii")
-            mime = "application/gzip" if name.endswith(".gz") else "text/csv"
+
+            # Simple mime guess (same logic you had)
+            if name.endswith(".gz"):
+                mime = "application/gzip"
+            elif name.endswith(".csv"):
+                mime = "text/csv"
+            elif name.endswith(".json"):
+                mime = "application/json"
+            elif name.endswith(".pdf"):
+                mime = "application/pdf"
+            else:
+                mime = "application/octet-stream"
+
+            # Brevo uses: "attachment": [{"content": "...", "name": "file.csv"}]
+            # Some accounts also accept "type", but "name/content" is the key requirement.
             atts.append({
                 "content": b64,
-                "type": mime,
-                "filename": name,
-                "disposition": "attachment",
+                "name": name,
             })
 
         payload = {
-            "personalizations": [{"to": [{"email": SALES_EMAIL}]}],
-            "from": {"email": SENDGRID_FROM, "name": "Neochicks Bot"},
+            "sender": {"email": BREVO_FROM, "name": "Neochicks Bot"},
+            "to": [{"email": SALES_EMAIL}],
             "subject": subject,
-            "content": [{"type": "text/plain", "value": body}],
+            "textContent": body,
         }
         if atts:
-            payload["attachments"] = atts
+            payload["attachment"] = atts
 
         r = requests.post(
-            "https://api.sendgrid.com/v3/mail/send",
-            headers={"Authorization": f"Bearer {SENDGRID_API_KEY}", "Content-Type": "application/json"},
+            BREVO_URL,
+            headers={
+                "api-key": BREVO_API_KEY,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
             json=payload,
             timeout=30,
         )
-        return r.status_code in (200, 202)
+
+        ok = r.status_code in (200, 201, 202)
+        if not ok:
+            app.logger.info("Brevo attachments send failed: %s %s", r.status_code, r.text)
+        return ok
+
     except Exception:
-        app.logger.exception("SendGrid attachments exception")
+        app.logger.exception("Brevo attachments exception")
         return False
 
 # -------------------------
