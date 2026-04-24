@@ -1426,6 +1426,11 @@ def webhook():
         })
 
         reply = brain_reply(text, from_wa)
+        # Use AI only when rule-based bot did not understand
+        if reply.get("text", "").startswith("I didn’t quite get that"):
+            ai_result = ai_reply_and_extract_lead(text, from_wa)
+            reply = {"text": ai_result["reply"]}
+            save_ai_lead(ai_result["lead"])
 
         # ---- audit outgoing (masked) ----
         _audit_write({
@@ -1985,3 +1990,137 @@ def testpdf():
         as_attachment=False,
         download_name="test_invoice.pdf"
     )
+
+
+#------------
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+KNOWLEDGE_FILE = "neochicks_knowledge.txt"
+SALES_RULES_FILE = "sales_rules.txt"
+LEADS_FILE = "/var/data/leads.jsonl"
+
+
+def read_text_file(path: str) -> str:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        app.logger.exception("Failed to read file: %s", path)
+        return ""
+
+
+def save_ai_lead(lead: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(LEADS_FILE), exist_ok=True)
+
+        lead["created_at"] = datetime.utcnow().isoformat()
+        lead["source"] = "whatsapp_ai"
+
+        with open(LEADS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(lead, ensure_ascii=False) + "\n")
+
+    except Exception:
+        app.logger.exception("Failed to save AI lead")
+
+
+def fallback_ai_result(customer_phone: str) -> dict:
+    return {
+        "reply": (
+            "Thanks for reaching out to Neochicks Poultry 🐣. "
+            "Kindly tell us what you need, quantity, and your location for delivery."
+        ),
+        "lead": {
+            "phone": customer_phone,
+            "name": "",
+            "interest": "",
+            "quantity": "",
+            "location": "",
+            "urgency": "",
+            "intent": "unknown",
+            "ready_to_buy": False
+        }
+    }
+
+
+def ai_reply_and_extract_lead(user_message: str, customer_phone: str) -> dict:
+    if not OPENAI_API_KEY:
+        app.logger.info("AI skipped—missing OPENAI_API_KEY")
+        return fallback_ai_result(customer_phone)
+
+    knowledge = read_text_file(KNOWLEDGE_FILE)
+    sales_rules = read_text_file(SALES_RULES_FILE)
+
+    if not knowledge:
+        app.logger.info("AI skipped—missing knowledge file")
+        return fallback_ai_result(customer_phone)
+
+    prompt = f"""
+You are Neochicks WhatsApp Sales Assistant.
+
+Use ONLY the business knowledge provided below.
+Do NOT invent prices, stock, delivery terms, guarantees, or product claims.
+If information is missing, ask the customer to WhatsApp/call 0707 78 78 84.
+
+BUSINESS KNOWLEDGE:
+{knowledge}
+
+SALES RULES:
+{sales_rules}
+
+CUSTOMER PHONE:
+{customer_phone}
+
+CUSTOMER MESSAGE:
+{user_message}
+
+Return ONLY valid JSON in this exact structure:
+{{
+  "reply": "short friendly WhatsApp reply",
+  "lead": {{
+    "phone": "{customer_phone}",
+    "name": "",
+    "interest": "",
+    "quantity": "",
+    "location": "",
+    "urgency": "",
+    "intent": "",
+    "ready_to_buy": false
+  }}
+}}
+"""
+
+    try:
+        r = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": OPENAI_MODEL,
+                "input": prompt,
+                "temperature": 0.2,
+            },
+            timeout=25,
+        )
+
+        if r.status_code not in (200, 201):
+            app.logger.info("OpenAI failed: %s %s", r.status_code, r.text)
+            return fallback_ai_result(customer_phone)
+
+        data = r.json()
+
+        # Extract output text from Responses API
+        text = data["output"][0]["content"][0]["text"].strip()
+
+        result = json.loads(text)
+
+        if "reply" not in result or "lead" not in result:
+            return fallback_ai_result(customer_phone)
+
+        return result
+
+    except Exception:
+        app.logger.exception("AI reply/extraction failed")
+        return fallback_ai_result(customer_phone)
